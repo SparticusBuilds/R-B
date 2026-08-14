@@ -508,7 +508,7 @@ function TileGrid({ tiles, setTab, pendingLabelCount, fill }) {
     <div style={{
       display: 'grid',
       gridTemplateColumns: fill ? 'repeat(auto-fit, minmax(220px, 1fr))' : 'repeat(2, 1fr)',
-      gridAutoRows: fill ? '1fr' : undefined,
+      gridAutoRows: fill ? 'minmax(140px, 1fr)' : undefined,
       gap: fill ? 16 : 12,
       flex: fill ? 1 : undefined,
     }}>

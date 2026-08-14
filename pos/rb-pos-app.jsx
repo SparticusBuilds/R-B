@@ -527,12 +527,14 @@ const ACCOUNTS_TILES = [
   { id: 'billing', title: 'Billing', desc: 'Monthly statements', accent: BROWN, icon: Receipt },
 ];
 
-function TileGrid({ tiles, setTab, pendingLabelCount, fill }) {
+function TileGrid({ tiles, setTab, pendingLabelCount, fill, columns }) {
+  const cols = columns || 3;
   return (
     <div style={{
       display: 'grid',
-      gridTemplateColumns: fill ? 'repeat(auto-fit, minmax(220px, 1fr))' : 'repeat(2, 1fr)',
-      gridAutoRows: fill ? 'minmax(140px, 1fr)' : undefined,
+      gridTemplateColumns: fill ? `repeat(${cols}, 1fr)` : 'repeat(2, 1fr)',
+      gridAutoRows: 'auto',
+      alignContent: fill ? 'start' : undefined,
       gap: fill ? 16 : 12,
       flex: fill ? 1 : undefined,
     }}>
@@ -543,21 +545,23 @@ function TileGrid({ tiles, setTab, pendingLabelCount, fill }) {
             key={t.id}
             onClick={() => setTab(t.id)}
             style={{
-              position: 'relative', textAlign: 'left', cursor: 'pointer',
+              position: 'relative', cursor: 'pointer',
               background: '#fff', border: `1px solid ${LINE}`, borderRadius: 6,
-              padding: fill ? '32px 26px' : '20px 16px', minHeight: fill ? 160 : 96,
-              display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+              padding: fill ? '30px 20px' : '20px 16px', minHeight: fill ? 180 : 96,
+              display: 'flex', flexDirection: 'column', alignItems: fill ? 'center' : 'flex-start',
+              justifyContent: fill ? 'center' : 'space-between', textAlign: fill ? 'center' : 'left',
+              gap: fill ? 12 : 0,
             }}
           >
-            {t.icon && <t.icon size={fill ? 30 : 20} strokeWidth={1.75} color={t.accent} style={{ marginBottom: fill ? 18 : 14 }} />}
+            {t.icon && <t.icon size={fill ? 46 : 20} strokeWidth={1.5} color={t.accent} style={{ marginBottom: fill ? 4 : 14 }} />}
             <div>
-              <div style={{ fontFamily: 'Fraunces, serif', fontWeight: 700, fontSize: fill ? '1.55rem' : '1.05rem', color: t.accent }}>
+              <div style={{ fontFamily: 'Fraunces, serif', fontWeight: 700, fontSize: fill ? '1.3rem' : '1.05rem', color: t.accent }}>
                 {t.title}
                 {badge > 0 && (
                   <span style={{ marginLeft: 8, background: WHEAT, color: GREEN, fontFamily: 'monospace', fontSize: '0.65rem', fontWeight: 700, borderRadius: 10, padding: '1px 7px', verticalAlign: 'middle' }}>{badge}</span>
                 )}
               </div>
-              <div style={{ fontSize: fill ? '0.85rem' : '0.78rem', color: '#6b6659', marginTop: 4 }}>{t.desc}</div>
+              <div style={{ fontSize: fill ? '0.78rem' : '0.78rem', color: '#6b6659', marginTop: 4 }}>{t.desc}</div>
             </div>
           </button>
         );
@@ -567,7 +571,7 @@ function TileGrid({ tiles, setTab, pendingLabelCount, fill }) {
 }
 
 function HomeTab({ setTab, pendingLabelCount }) {
-  return <TileGrid tiles={HOME_TILES} setTab={setTab} pendingLabelCount={pendingLabelCount} fill />;
+  return <TileGrid tiles={HOME_TILES} setTab={setTab} pendingLabelCount={pendingLabelCount} fill columns={3} />;
 }
 
 function InventoryMenuTab({ setTab, pendingLabelCount }) {

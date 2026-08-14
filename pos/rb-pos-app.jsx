@@ -13,7 +13,30 @@ const RUST = '#8a3b28';
 const CHARCOAL = '#211f1c';
 const OK = '#3d6b45';
 const WARN = '#b3401f';
+const SLATE = '#3d5a6c';
+const PLUM = '#6b3a52';
+const BROWN = '#7a5c3e';
+const PURPLE = '#6a4c93';
+const BLUE = '#2f5d8a';
 const LINE = 'rgba(31,51,39,0.14)';
+
+// Staff get a colour by list position, not by name — Trade Counter first, so green.
+// New staff appended to the list automatically pick up the next colour in rotation.
+const STAFF_PALETTE = [GREEN, BLUE, PURPLE, WHEAT, RUST, BROWN, OK, SLATE, WARN];
+function staffColor(staffList, name) {
+  const idx = staffList.findIndex((s) => s.name === name);
+  const safeIdx = idx >= 0 ? idx : 0;
+  return STAFF_PALETTE[safeIdx % STAFF_PALETTE.length];
+}
+// Picks readable text for a solid color swatch — most of the palette is dark enough for
+// white text, but wheat is light enough that it needs dark text instead.
+function textColorFor(hex) {
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+  const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return lum > 0.55 ? CHARCOAL : '#fff';
+}
 
 const STORAGE_KEY = 'rb-pos-data-v4';
 
@@ -422,12 +445,13 @@ export default function RBPos() {
             onClick={() => setLocked(true)}
             title="Tap to hand over to another staff member"
             style={{
-              background: 'rgba(243,238,226,0.12)', color: '#fff', border: `1px solid ${WHEAT}`, borderRadius: 20,
-              padding: '5px 12px', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 6,
+              background: staffColor(staffList, currentStaff),
+              color: textColorFor(staffColor(staffList, currentStaff)),
+              border: 'none',
+              borderRadius: 24,
+              padding: '9px 20px', fontSize: '0.95rem', fontWeight: 700, cursor: 'pointer',
             }}
           >
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: OK }} />
             {currentStaff}
           </button>
         </div>
@@ -484,23 +508,23 @@ function Label({ children }) {
 const HOME_TILES = [
   { id: 'sales', title: 'Sales', desc: 'Ring up a sale', accent: GREEN, icon: ShoppingCart },
   { id: 'quote', title: 'Quote', desc: 'Price it up, no stock change', accent: RUST, icon: FileText },
-  { id: 'returns', title: 'Returns', desc: 'Process a return', accent: GREEN, icon: RotateCcw },
-  { id: 'inventory-menu', title: 'Inventory', desc: 'Stock, products, goods in, labels', accent: GREEN, badgeKey: 'labels', icon: Boxes },
-  { id: 'accounts-menu', title: 'Accounts', desc: 'Balances, customers, billing', accent: GREEN, icon: Wallet },
-  { id: 'settings', title: 'Settings', desc: 'Staff, backup, corrections', accent: GREEN, icon: SettingsIcon },
+  { id: 'returns', title: 'Returns', desc: 'Process a return', accent: SLATE, icon: RotateCcw },
+  { id: 'inventory-menu', title: 'Inventory', desc: 'Stock, products, goods in, labels', accent: WHEAT, badgeKey: 'labels', icon: Boxes },
+  { id: 'accounts-menu', title: 'Accounts', desc: 'Balances, customers, billing', accent: PLUM, icon: Wallet },
+  { id: 'settings', title: 'Settings', desc: 'Staff, backup, corrections', accent: BROWN, icon: SettingsIcon },
 ];
 
 const INVENTORY_TILES = [
-  { id: 'stock', title: 'Stock', desc: 'Check what\u2019s on the shelf', accent: GREEN, icon: Package },
-  { id: 'products', title: 'Products', desc: 'Catalogue & import', accent: GREEN, icon: Tag },
-  { id: 'goodsin', title: 'Goods In', desc: 'Receive a delivery', accent: GREEN, icon: Truck },
-  { id: 'labels', title: 'Labels', desc: 'Print price changes', accent: GREEN, badgeKey: 'labels', icon: Printer },
+  { id: 'stock', title: 'Stock', desc: 'Check what\u2019s on the shelf', accent: GREEN_MID, icon: Package },
+  { id: 'products', title: 'Products', desc: 'Catalogue & import', accent: WHEAT, icon: Tag },
+  { id: 'goodsin', title: 'Goods In', desc: 'Receive a delivery', accent: SLATE, icon: Truck },
+  { id: 'labels', title: 'Labels', desc: 'Print price changes', accent: RUST, badgeKey: 'labels', icon: Printer },
 ];
 
 const ACCOUNTS_TILES = [
-  { id: 'accounts', title: 'Accounts', desc: 'Balances & payments', accent: GREEN, icon: Wallet },
-  { id: 'customers', title: 'Customers', desc: 'Add or edit customers', accent: GREEN, icon: Users },
-  { id: 'billing', title: 'Billing', desc: 'Monthly statements', accent: GREEN, icon: Receipt },
+  { id: 'accounts', title: 'Accounts', desc: 'Balances & payments', accent: PLUM, icon: Wallet },
+  { id: 'customers', title: 'Customers', desc: 'Add or edit customers', accent: GREEN_MID, icon: Users },
+  { id: 'billing', title: 'Billing', desc: 'Monthly statements', accent: BROWN, icon: Receipt },
 ];
 
 function TileGrid({ tiles, setTab, pendingLabelCount, fill }) {
@@ -521,13 +545,13 @@ function TileGrid({ tiles, setTab, pendingLabelCount, fill }) {
             style={{
               position: 'relative', textAlign: 'left', cursor: 'pointer',
               background: '#fff', border: `1px solid ${LINE}`, borderRadius: 6,
-              padding: fill ? '28px 24px' : '20px 16px', minHeight: fill ? 140 : 96,
+              padding: fill ? '32px 26px' : '20px 16px', minHeight: fill ? 160 : 96,
               display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
             }}
           >
-            {t.icon && <t.icon size={fill ? 26 : 20} strokeWidth={1.75} color={t.accent} style={{ marginBottom: fill ? 18 : 14 }} />}
+            {t.icon && <t.icon size={fill ? 30 : 20} strokeWidth={1.75} color={t.accent} style={{ marginBottom: fill ? 18 : 14 }} />}
             <div>
-              <div style={{ fontFamily: 'Fraunces, serif', fontWeight: 600, fontSize: fill ? '1.3rem' : '1.05rem', color: CHARCOAL }}>
+              <div style={{ fontFamily: 'Fraunces, serif', fontWeight: 700, fontSize: fill ? '1.55rem' : '1.05rem', color: t.accent }}>
                 {t.title}
                 {badge > 0 && (
                   <span style={{ marginLeft: 8, background: WHEAT, color: GREEN, fontFamily: 'monospace', fontSize: '0.65rem', fontWeight: 700, borderRadius: 10, padding: '1px 7px', verticalAlign: 'middle' }}>{badge}</span>
@@ -1668,8 +1692,11 @@ function SettingsTab({ staffList, addStaffMember, corrections, exportAllData, lo
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
           {staffList.map((s) => (
-            <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', padding: '5px 0', borderBottom: `1px solid ${LINE}` }}>
-              <span>{s.name}</span>
+            <div key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.82rem', padding: '5px 0', borderBottom: `1px solid ${LINE}` }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 10, height: 10, borderRadius: '50%', background: staffColor(staffList, s.name), flexShrink: 0 }} />
+                {s.name}
+              </span>
               <span style={{ fontFamily: 'monospace', color: '#8a8577' }}>#{s.pin}</span>
             </div>
           ))}

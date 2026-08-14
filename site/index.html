@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Roberts &amp; Bumford Agricultural Stores &amp; Chemicals</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --green-deep:#1f3327;
+    --green-mid:#2f4a38;
+    --parchment:#f3eee2;
+    --wheat:#c9a227;
+    --rust:#8a3b28;
+    --charcoal:#211f1c;
+    --cream-line:rgba(243,238,226,0.18);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html{scroll-behavior:smooth;}
+  body{
+    background:var(--parchment);
+    color:var(--charcoal);
+    font-family:'Inter',sans-serif;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3{font-family:'Fraunces',serif;font-weight:600;letter-spacing:-0.01em;}
+  .mono{font-family:'Space Mono',monospace;}
+  a{color:inherit;}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 24px;}
+
+  /* ---- header ---- */
+  header{
+    background:var(--green-deep);
+    color:var(--parchment);
+    padding:18px 0;
+    position:sticky;top:0;z-index:50;
+    border-bottom:1px solid var(--cream-line);
+  }
+  header .wrap{display:flex;align-items:center;justify-content:space-between;}
+  .brand{display:flex;align-items:center;gap:12px;}
+  .brand-mark{
+    width:42px;height:42px;border-radius:50%;
+    border:1.5px solid var(--wheat);
+    display:flex;align-items:center;justify-content:center;
+    font-family:'Fraunces',serif;font-weight:700;font-size:15px;color:var(--wheat);
+  }
+  .brand-name{font-family:'Fraunces',serif;font-weight:600;font-size:1.05rem;line-height:1.15;}
+  .brand-name span{display:block;font-family:'Inter',sans-serif;font-weight:500;font-size:0.68rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--wheat);margin-top:2px;}
+  nav{display:flex;gap:28px;font-size:0.88rem;}
+  nav a{text-decoration:none;opacity:0.85;transition:opacity .15s;}
+  nav a:hover{opacity:1;}
+  .call-btn{
+    background:var(--wheat);color:var(--green-deep);
+    padding:9px 18px;border-radius:2px;
+    font-weight:600;font-size:0.85rem;text-decoration:none;
+    white-space:nowrap;
+  }
+  @media (max-width:760px){ nav{display:none;} }
+
+  /* ---- hero ---- */
+  .hero{
+    background:var(--green-deep);
+    color:var(--parchment);
+    padding:72px 0 90px;
+    position:relative;
+    overflow:hidden;
+  }
+  .hero::before{
+    content:"";position:absolute;inset:0;
+    background-image:
+      repeating-linear-gradient(90deg, transparent, transparent 158px, var(--cream-line) 158px, var(--cream-line) 159px);
+    opacity:0.5;
+  }
+  .hero-inner{position:relative;max-width:640px;}
+  .eyebrow{
+    font-family:'Space Mono',monospace;font-size:0.75rem;letter-spacing:0.12em;
+    text-transform:uppercase;color:var(--wheat);margin-bottom:18px;display:flex;align-items:center;gap:10px;
+  }
+  .eyebrow::before{content:"";width:22px;height:1px;background:var(--wheat);display:inline-block;}
+  .hero h1{font-size:clamp(2.1rem,5vw,3.4rem);line-height:1.05;color:#fff;}
+  .hero p.lead{margin-top:20px;font-size:1.08rem;max-width:480px;color:rgba(243,238,226,0.82);}
+  .hero-cta{display:flex;gap:14px;margin-top:34px;flex-wrap:wrap;}
+  .btn-primary{
+    background:var(--wheat);color:var(--green-deep);padding:13px 26px;
+    font-weight:600;font-size:0.92rem;text-decoration:none;border-radius:2px;
+  }
+  .btn-secondary{
+    border:1px solid var(--cream-line);color:var(--parchment);padding:13px 26px;
+    font-weight:500;font-size:0.92rem;text-decoration:none;border-radius:2px;
+  }
+  .hero-tag{
+    position:absolute;right:0;top:30px;
+    background:var(--rust);color:var(--parchment);
+    padding:10px 16px 10px 14px;
+    font-family:'Space Mono',monospace;font-size:0.72rem;letter-spacing:0.04em;
+    border-radius:0 3px 3px 0;
+    box-shadow:0 6px 18px rgba(0,0,0,0.25);
+  }
+  .hero-tag::before{
+    content:"";position:absolute;left:-9px;top:50%;transform:translateY(-50%);
+    width:0;height:0;border-top:9px solid transparent;border-bottom:9px solid transparent;
+    border-right:9px solid var(--rust);
+  }
+  .hero-tag b{display:block;font-family:'Fraunces',serif;font-size:0.95rem;margin-top:2px;}
+  @media (max-width:760px){ .hero-tag{display:none;} }
+
+  /* ---- ticker strip ---- */
+  .strip{
+    background:var(--wheat);color:var(--green-deep);
+    padding:11px 0;font-family:'Space Mono',monospace;font-size:0.78rem;letter-spacing:0.03em;
+    overflow:hidden;white-space:nowrap;border-bottom:1px solid rgba(31,51,39,0.15);
+  }
+  .strip span{padding:0 28px;}
+
+  /* ---- section shell ---- */
+  section{padding:76px 0;}
+  .section-head{max-width:560px;margin-bottom:44px;}
+  .section-eyebrow{
+    font-family:'Space Mono',monospace;font-size:0.72rem;letter-spacing:0.1em;
+    text-transform:uppercase;color:var(--rust);margin-bottom:10px;
+  }
+  .section-head h2{font-size:clamp(1.6rem,3.4vw,2.2rem);color:var(--green-deep);}
+  .section-head p{margin-top:12px;color:#4a463d;font-size:1rem;max-width:480px;}
+
+  /* ---- services (ticket cards) ---- */
+  .services-grid{
+    display:grid;grid-template-columns:repeat(2,1fr);gap:20px;max-width:740px;
+  }
+  @media (max-width:900px){ .services-grid{grid-template-columns:1fr;} }
+  .ticket{
+    background:#fff;border:1px solid rgba(31,51,39,0.14);
+    position:relative;padding:28px 24px 24px;
+  }
+  .ticket::after{
+    content:"";position:absolute;top:18px;right:18px;
+    width:9px;height:9px;border-radius:50%;
+    background:var(--parchment);border:1px solid rgba(31,51,39,0.25);
+  }
+  .ticket .num{
+    font-family:'Space Mono',monospace;font-size:0.72rem;color:var(--rust);
+    letter-spacing:0.05em;margin-bottom:14px;display:block;
+  }
+  .ticket h3{font-size:1.15rem;color:var(--green-deep);margin-bottom:10px;}
+  .ticket p{font-size:0.92rem;color:#514d43;}
+
+  /* ---- accounts band ---- */
+  .accounts{
+    background:var(--green-mid);color:var(--parchment);
+  }
+  .accounts .wrap{display:grid;grid-template-columns:1.1fr 0.9fr;gap:48px;align-items:center;}
+  @media (max-width:820px){ .accounts .wrap{grid-template-columns:1fr;} }
+  .accounts h2{color:#fff;font-size:clamp(1.5rem,3vw,2rem);}
+  .accounts p{margin-top:16px;color:rgba(243,238,226,0.82);font-size:1rem;max-width:440px;}
+  .ledger{
+    background:var(--parchment);color:var(--charcoal);
+    border-radius:3px;padding:26px 24px;
+    box-shadow:0 18px 40px rgba(0,0,0,0.28);
+  }
+  .ledger-row{
+    display:flex;justify-content:space-between;
+    font-family:'Space Mono',monospace;font-size:0.82rem;
+    padding:9px 0;border-bottom:1px dashed rgba(31,51,39,0.25);
+  }
+  .ledger-row:last-child{border-bottom:none;}
+  .ledger-title{
+    font-family:'Space Mono',monospace;font-size:0.7rem;letter-spacing:0.1em;
+    text-transform:uppercase;color:var(--rust);margin-bottom:14px;
+  }
+
+  /* ---- about / location ---- */
+  .about .wrap{display:grid;grid-template-columns:1fr 1fr;gap:56px;}
+  @media (max-width:820px){ .about .wrap{grid-template-columns:1fr;} }
+  .info-list{margin-top:24px;}
+  .info-row{display:flex;gap:14px;padding:12px 0;border-top:1px solid rgba(31,51,39,0.12);}
+  .info-row:first-child{border-top:none;}
+  .info-label{
+    font-family:'Space Mono',monospace;font-size:0.7rem;text-transform:uppercase;
+    letter-spacing:0.08em;color:var(--rust);width:90px;flex-shrink:0;padding-top:2px;
+  }
+  .info-value{font-size:0.95rem;color:var(--charcoal);}
+  .map-card{
+    background:var(--green-deep);border-radius:3px;padding:32px 26px;color:var(--parchment);
+    display:flex;flex-direction:column;justify-content:space-between;min-height:280px;
+  }
+  .map-card h3{color:#fff;font-size:1.25rem;margin-bottom:10px;}
+  .map-card p{color:rgba(243,238,226,0.78);font-size:0.92rem;}
+  .hours{margin-top:22px;}
+  .hours-row{display:flex;justify-content:space-between;font-size:0.85rem;padding:6px 0;border-top:1px solid var(--cream-line);}
+  .hours-row:first-child{border-top:none;}
+
+  /* ---- testimonial ---- */
+  .testimonial{background:var(--parchment);border-top:1px solid rgba(31,51,39,0.12);}
+  blockquote{
+    max-width:640px;font-family:'Fraunces',serif;font-weight:400;
+    font-size:clamp(1.2rem,2.6vw,1.55rem);color:var(--green-deep);line-height:1.45;
+  }
+  cite{display:block;margin-top:18px;font-style:normal;font-family:'Space Mono',monospace;font-size:0.78rem;color:var(--rust);}
+
+  /* ---- footer / CTA ---- */
+  footer{background:var(--green-deep);color:var(--parchment);padding:60px 0 32px;}
+  .footer-top{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:24px;padding-bottom:36px;border-bottom:1px solid var(--cream-line);}
+  .footer-top h2{color:#fff;font-size:clamp(1.6rem,3.6vw,2.2rem);max-width:420px;}
+  .footer-bottom{display:flex;justify-content:space-between;padding-top:24px;font-size:0.8rem;color:rgba(243,238,226,0.6);flex-wrap:wrap;gap:10px;}
+  .footer-bottom a{text-decoration:none;color:rgba(243,238,226,0.6);}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="brand">
+      <div class="brand-mark">R&amp;B</div>
+      <div class="brand-name">Roberts &amp; Bumford
+        <span>Agricultural Stores &amp; Chemicals</span>
+      </div>
+    </div>
+    <nav>
+      <a href="#services">Stock &amp; Supplies</a>
+      <a href="#about">Visit Us</a>
+    </nav>
+    <a class="call-btn" href="tel:01686629700">Call 01686 629700</a>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap hero-inner">
+    <div class="eyebrow">Newtown, Powys — Est. locally trusted</div>
+    <h1>Stocked, sorted, and ready for the flock and the herd.</h1>
+    <p class="lead">Animal health, wormers, and everyday farm supplies for Mid Wales sheep and cattle keepers — with a trade account that bills the way farming actually works.</p>
+    <div class="hero-cta">
+      <a class="btn-primary" href="tel:01686629700">Call the store</a>
+      <a class="btn-secondary" href="#about">Get directions</a>
+    </div>
+  </div>
+  <div class="hero-tag">
+    R&amp;B / SY16 2JS
+    <b>Open today</b>
+  </div>
+</section>
+
+<div class="strip">
+  <span>SHEEP &amp; CATTLE HEALTH</span><span>WORMERS &amp; VACCINES</span><span>TRADE ACCOUNTS</span><span>FARM SUPPLIES</span><span>NEWTOWN, POWYS</span><span>SHEEP &amp; CATTLE HEALTH</span><span>WORMERS &amp; VACCINES</span><span>TRADE ACCOUNTS</span><span>FARM SUPPLIES</span><span>NEWTOWN, POWYS</span>
+</div>
+
+<section id="services">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="section-eyebrow">What we stock</div>
+      <h2>Everything from the medicine cabinet to the yard.</h2>
+      <p>Straight answers from people who know livestock, not just a shop counter.</p>
+    </div>
+    <div class="services-grid">
+      <div class="ticket">
+        <span class="num">STOCK / 01</span>
+        <h3>Animal Health</h3>
+        <p>Wormers, vaccines and everyday medicines for sheep and cattle, with proper advice on what fits your flock or herd.</p>
+      </div>
+      <div class="ticket">
+        <span class="num">STOCK / 02</span>
+        <h3>Farm Supplies</h3>
+        <p>The everyday agricultural essentials — feed, fencing and general yard supplies, kept in stock, not on back-order.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="about" id="about">
+  <div class="wrap">
+    <div>
+      <div class="section-eyebrow">Visit the store</div>
+      <h2 style="font-size:clamp(1.6rem,3.4vw,2.2rem);color:var(--green-deep);">Newtown, Powys.</h2>
+      <div class="info-list">
+        <div class="info-row"><div class="info-label">Address</div><div class="info-value">Roberts &amp; Bumford, Newtown, Powys, SY16 2JS</div></div>
+        <div class="info-row"><div class="info-label">Phone</div><div class="info-value"><a href="tel:01686629700">01686 629700</a></div></div>
+        <div class="info-row"><div class="info-label">Email</div><div class="info-value"><a href="mailto:randbagri@pc-q.net">randbagri@pc-q.net</a></div></div>
+      </div>
+    </div>
+    <div class="map-card">
+      <div>
+        <h3>Find us</h3>
+        <p>Just off the main road into Newtown — easy in, easy out if you're calling in on the way past.</p>
+      </div>
+      <div class="hours">
+        <div class="hours-row"><span>Mon – Fri</span><span>Open now</span></div>
+        <div class="hours-row"><span>Saturday</span><span>Check ahead</span></div>
+        <div class="hours-row"><span>Sunday</span><span>Closed</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="testimonial">
+  <div class="wrap">
+    <blockquote>
+      "Never leave without what I came for — and if they haven't got it, they'll tell you straight rather than have you waiting on it."
+      <cite>— Local farm customer</cite>
+    </blockquote>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="footer-top">
+      <h2>Call ahead, or just call in.</h2>
+      <a class="btn-primary" href="tel:01686629700">01686 629700</a>
+    </div>
+    <div class="footer-bottom">
+      <span>Roberts &amp; Bumford Agricultural Stores &amp; Chemicals · Newtown, Powys SY16 2JS</span>
+      <a href="mailto:randbagri@pc-q.net">randbagri@pc-q.net</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

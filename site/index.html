@@ -171,7 +171,7 @@
   }
 
   /* ---- about / location ---- */
-  .about .wrap{display:grid;grid-template-columns:1fr 1fr;gap:56px;}
+  .about .wrap{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:start;}
   @media (max-width:820px){ .about .wrap{grid-template-columns:1fr;} }
   .info-list{margin-top:24px;}
   .info-row{display:flex;gap:14px;padding:12px 0;border-top:1px solid rgba(31,51,39,0.12);}
@@ -181,23 +181,47 @@
     letter-spacing:0.08em;color:var(--rust);width:90px;flex-shrink:0;padding-top:2px;
   }
   .info-value{font-size:0.95rem;color:var(--charcoal);}
-  .map-card{
-    background:var(--green-deep);border-radius:3px;padding:32px 26px;color:var(--parchment);
-    display:flex;flex-direction:column;justify-content:space-between;min-height:280px;
-  }
-  .map-card h3{color:#fff;font-size:1.25rem;margin-bottom:10px;}
-  .map-card p{color:rgba(243,238,226,0.78);font-size:0.92rem;}
-  .hours{margin-top:22px;}
-  .hours-row{display:flex;justify-content:space-between;font-size:0.85rem;padding:6px 0;border-top:1px solid var(--cream-line);}
+  .hours{margin-top:22px;border-top:2px solid rgba(31,51,39,0.12);padding-top:8px;}
+  .hours-row{display:flex;justify-content:space-between;font-size:0.85rem;padding:8px 0;border-top:1px solid rgba(31,51,39,0.12);color:var(--charcoal);}
   .hours-row:first-child{border-top:none;}
 
+  /* ---- map ---- */
+  .map-frame{
+    width:100%;height:340px;border:1px solid rgba(31,51,39,0.14);border-radius:3px;
+    overflow:hidden;filter:grayscale(0.15) contrast(1.05);
+  }
+  .map-frame iframe{width:100%;height:100%;border:0;display:block;}
+
+  /* ---- photo bands ---- */
+  .photo-band{
+    position:relative;height:400px;background-size:cover;background-position:center;
+    display:flex;align-items:flex-end;padding:26px 0;
+  }
+  .photo-band::before{
+    content:"";position:absolute;inset:0;
+    background:linear-gradient(180deg, rgba(31,51,39,0.05) 0%, rgba(31,51,39,0.55) 100%);
+  }
+  .photo-band .wrap{position:relative;}
+  .photo-caption{
+    font-family:'Space Mono',monospace;font-size:0.72rem;letter-spacing:0.05em;
+    color:var(--parchment);text-transform:uppercase;
+  }
+  @media (max-width:700px){ .photo-band{height:260px;} }
+
   /* ---- testimonial ---- */
-  .testimonial{background:var(--parchment);border-top:1px solid rgba(31,51,39,0.12);}
+  .testimonial{
+    position:relative;background-image:url('https://images.unsplash.com/photo-1731060037233-8f24de526548?fm=jpg&q=60&w=1800&auto=format&fit=crop');
+    background-size:cover;background-position:center;
+  }
+  .testimonial::before{
+    content:"";position:absolute;inset:0;background:rgba(31,51,39,0.72);
+  }
+  .testimonial .wrap{position:relative;}
   blockquote{
     max-width:640px;font-family:'Fraunces',serif;font-weight:400;
-    font-size:clamp(1.2rem,2.6vw,1.55rem);color:var(--green-deep);line-height:1.45;
+    font-size:clamp(1.2rem,2.6vw,1.55rem);color:#fff;line-height:1.45;
   }
-  cite{display:block;margin-top:18px;font-style:normal;font-family:'Space Mono',monospace;font-size:0.78rem;color:var(--rust);}
+  cite{display:block;margin-top:18px;font-style:normal;font-family:'Space Mono',monospace;font-size:0.78rem;color:var(--wheat);}
 
   /* ---- footer / CTA ---- */
   footer{background:var(--green-deep);color:var(--parchment);padding:60px 0 32px;}
@@ -227,7 +251,7 @@
 
 <section class="hero">
   <div class="wrap hero-inner">
-    <div class="eyebrow">Newtown, Powys — Est. locally trusted</div>
+    <div class="eyebrow">Est. locally trusted</div>
     <h1>Stocked, sorted, and ready for the flock and the herd.</h1>
     <p class="lead">Animal health, wormers, and everyday farm supplies for Mid Wales sheep and cattle keepers — with a trade account that bills the way farming actually works.</p>
     <div class="hero-cta">
@@ -242,7 +266,11 @@
 </section>
 
 <div class="strip">
-  <span>SHEEP &amp; CATTLE HEALTH</span><span>WORMERS &amp; VACCINES</span><span>TRADE ACCOUNTS</span><span>FARM SUPPLIES</span><span>NEWTOWN, POWYS</span><span>SHEEP &amp; CATTLE HEALTH</span><span>WORMERS &amp; VACCINES</span><span>TRADE ACCOUNTS</span><span>FARM SUPPLIES</span><span>NEWTOWN, POWYS</span>
+  <span>SHEEP &amp; CATTLE HEALTH</span><span>WORMERS &amp; VACCINES</span><span>TRADE ACCOUNTS</span><span>FARM SUPPLIES</span><span>SHEEP &amp; CATTLE HEALTH</span><span>WORMERS &amp; VACCINES</span><span>TRADE ACCOUNTS</span><span>FARM SUPPLIES</span>
+</div>
+
+<div class="photo-band" style="background-image:url('https://images.unsplash.com/photo-1700838712765-fad192553296?fm=jpg&q=60&w=1800&auto=format&fit=crop');">
+  <div class="wrap"><div class="photo-caption">Black Mountains, South Wales</div></div>
 </div>
 
 <section id="services">
@@ -267,30 +295,9 @@
   </div>
 </section>
 
-<section class="about" id="about">
-  <div class="wrap">
-    <div>
-      <div class="section-eyebrow">Visit the store</div>
-      <h2 style="font-size:clamp(1.6rem,3.4vw,2.2rem);color:var(--green-deep);">Newtown, Powys.</h2>
-      <div class="info-list">
-        <div class="info-row"><div class="info-label">Address</div><div class="info-value">Roberts &amp; Bumford, Newtown, Powys, SY16 2JS</div></div>
-        <div class="info-row"><div class="info-label">Phone</div><div class="info-value"><a href="tel:01686629700">01686 629700</a></div></div>
-        <div class="info-row"><div class="info-label">Email</div><div class="info-value"><a href="mailto:randbagri@pc-q.net">randbagri@pc-q.net</a></div></div>
-      </div>
-    </div>
-    <div class="map-card">
-      <div>
-        <h3>Find us</h3>
-        <p>Just off the main road into Newtown — easy in, easy out if you're calling in on the way past.</p>
-      </div>
-      <div class="hours">
-        <div class="hours-row"><span>Mon – Fri</span><span>Open now</span></div>
-        <div class="hours-row"><span>Saturday</span><span>Check ahead</span></div>
-        <div class="hours-row"><span>Sunday</span><span>Closed</span></div>
-      </div>
-    </div>
-  </div>
-</section>
+<div class="photo-band" style="background-image:url('https://images.unsplash.com/photo-1717704573816-a25ae6ab489f?fm=jpg&q=60&w=1800&auto=format&fit=crop');">
+  <div class="wrap"><div class="photo-caption">Anglesey, North Wales</div></div>
+</div>
 
 <section class="testimonial">
   <div class="wrap">
@@ -298,6 +305,32 @@
       "Never leave without what I came for — and if they haven't got it, they'll tell you straight rather than have you waiting on it."
       <cite>— Local farm customer</cite>
     </blockquote>
+  </div>
+</section>
+
+<section class="about" id="about">
+  <div class="wrap">
+    <div>
+      <div class="section-eyebrow">Visit the store</div>
+      <div class="info-list">
+        <div class="info-row"><div class="info-label">Address</div><div class="info-value">Roberts &amp; Bumford, Newtown, Powys, SY16 2JS</div></div>
+        <div class="info-row"><div class="info-label">Phone</div><div class="info-value"><a href="tel:01686629700">01686 629700</a></div></div>
+        <div class="info-row"><div class="info-label">Email</div><div class="info-value"><a href="mailto:randbagri@pc-q.net">randbagri@pc-q.net</a></div></div>
+      </div>
+      <div class="hours">
+        <div class="hours-row"><span>Mon – Fri</span><span>Open now</span></div>
+        <div class="hours-row"><span>Saturday</span><span>Check ahead</span></div>
+        <div class="hours-row"><span>Sunday</span><span>Closed</span></div>
+      </div>
+    </div>
+    <div class="map-frame">
+      <iframe
+        src="https://www.google.com/maps?q=Roberts+and+Bumford,+Newtown,+Powys,+SY16+2JS&output=embed"
+        loading="lazy"
+        referrerpolicy="no-referrer-when-downgrade"
+        title="Map showing Roberts & Bumford, Newtown, Powys"
+      ></iframe>
+    </div>
   </div>
 </section>
 

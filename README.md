@@ -6,7 +6,7 @@ Two things in this repo:
 Single-page website mockup, built to show R&B what a real site could look like. Not commissioned yet — for review only.
 
 ## `/pos`
-A **working prototype**, not production software, and it's a personal project — R&M haven't commissioned this. What it does:
+A **working prototype**, not production software, What it does:
 
 - Sales with batch-level FIFO stock deduction
 - Goods-in against purchase orders, with split-batch support

@@ -1,5 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Papa from 'papaparse';
+import {
+  ShoppingCart, FileText, RotateCcw, Boxes, Wallet,
+  Settings as SettingsIcon, Package, Tag, Truck, Printer, Users, Receipt,
+} from 'lucide-react';
 
 const GREEN = '#1f3327';
 const GREEN_MID = '#2f4a38';
@@ -90,7 +94,7 @@ function findBestMatch(catalogue, candidate) {
 }
 
 export default function RBPos() {
-  const [tab, setTab] = useState('sales');
+  const [tab, setTab] = useState('home');
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -398,25 +402,19 @@ export default function RBPos() {
           <div style={{ width: 30, height: 30, borderRadius: '50%', border: `1px solid ${WHEAT}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: WHEAT, fontFamily: 'monospace' }}>R&B</div>
           Stock &amp; Accounts
         </div>
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-          {['sales', 'goodsin', 'returns', 'stock', 'products', 'labels', 'customers', 'accounts', 'billing', 'settings'].map((t) => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {tab !== 'home' && (
             <button
-              key={t}
-              onClick={() => setTab(t)}
+              onClick={() => setTab('home')}
               style={{
-                padding: '7px 12px', fontSize: '0.8rem', borderRadius: 3, border: 'none', cursor: 'pointer',
-                background: tab === t ? 'rgba(243,238,226,0.12)' : 'transparent',
-                color: tab === t ? '#fff' : 'rgba(243,238,226,0.65)',
-                fontWeight: tab === t ? 600 : 400,
-                display: 'flex', alignItems: 'center', gap: 5,
+                display: 'flex', alignItems: 'center', gap: 6,
+                background: 'rgba(243,238,226,0.12)', color: '#fff', border: `1px solid ${WHEAT}`,
+                borderRadius: 3, padding: '7px 14px', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer',
               }}
             >
-              {{ sales: 'Sales', goodsin: 'Goods In', returns: 'Returns', stock: 'Stock', products: 'Products', labels: 'Labels', customers: 'Customers', accounts: 'Accounts', billing: 'Billing', settings: 'Settings' }[t]}
-              {t === 'labels' && pendingLabelCount > 0 && (
-                <span style={{ background: WHEAT, color: GREEN, fontFamily: 'monospace', fontSize: '0.65rem', fontWeight: 700, borderRadius: 10, padding: '1px 6px' }}>{pendingLabelCount}</span>
-              )}
+              ← Home
             </button>
-          ))}
+          )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: '0.72rem', color: 'rgba(243,238,226,0.55)' }}>{saving ? 'Saving…' : 'Saved'}</span>
@@ -435,11 +433,23 @@ export default function RBPos() {
         </div>
       </header>
 
-      <main style={{ maxWidth: 720, margin: '0 auto', padding: '24px 16px 60px' }}>
+      <main style={
+        tab === 'home'
+          ? { padding: '24px 16px', minHeight: 'calc(100vh - 118px)', display: 'flex', flexDirection: 'column' }
+          : { maxWidth: 720, margin: '0 auto', padding: '24px 16px 60px' }
+      }>
         {!loaded ? (
           <div style={{ padding: 40, textAlign: 'center', color: '#6b6659' }}>Loading…</div>
+        ) : tab === 'home' ? (
+          <HomeTab setTab={setTab} pendingLabelCount={pendingLabelCount} />
+        ) : tab === 'inventory-menu' ? (
+          <InventoryMenuTab setTab={setTab} pendingLabelCount={pendingLabelCount} />
+        ) : tab === 'accounts-menu' ? (
+          <AccountsMenuTab setTab={setTab} />
         ) : tab === 'sales' ? (
           <SalesTab products={products} customers={customers} stockFor={stockFor} recordSale={recordSale} />
+        ) : tab === 'quote' ? (
+          <QuoteTab products={products} />
         ) : tab === 'goodsin' ? (
           <GoodsInTab products={products} receiveStock={receiveStock} />
         ) : tab === 'returns' ? (
@@ -469,6 +479,79 @@ function Card({ children, style }) {
 }
 function Label({ children }) {
   return <div style={{ fontFamily: 'monospace', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#8a8577', marginBottom: 8 }}>{children}</div>;
+}
+
+const HOME_TILES = [
+  { id: 'sales', title: 'Sales', desc: 'Ring up a sale', accent: GREEN, icon: ShoppingCart },
+  { id: 'quote', title: 'Quote', desc: 'Price it up, no stock change', accent: RUST, icon: FileText },
+  { id: 'returns', title: 'Returns', desc: 'Process a return', accent: GREEN, icon: RotateCcw },
+  { id: 'inventory-menu', title: 'Inventory', desc: 'Stock, products, goods in, labels', accent: GREEN, badgeKey: 'labels', icon: Boxes },
+  { id: 'accounts-menu', title: 'Accounts', desc: 'Balances, customers, billing', accent: GREEN, icon: Wallet },
+  { id: 'settings', title: 'Settings', desc: 'Staff, backup, corrections', accent: GREEN, icon: SettingsIcon },
+];
+
+const INVENTORY_TILES = [
+  { id: 'stock', title: 'Stock', desc: 'Check what\u2019s on the shelf', accent: GREEN, icon: Package },
+  { id: 'products', title: 'Products', desc: 'Catalogue & import', accent: GREEN, icon: Tag },
+  { id: 'goodsin', title: 'Goods In', desc: 'Receive a delivery', accent: GREEN, icon: Truck },
+  { id: 'labels', title: 'Labels', desc: 'Print price changes', accent: GREEN, badgeKey: 'labels', icon: Printer },
+];
+
+const ACCOUNTS_TILES = [
+  { id: 'accounts', title: 'Accounts', desc: 'Balances & payments', accent: GREEN, icon: Wallet },
+  { id: 'customers', title: 'Customers', desc: 'Add or edit customers', accent: GREEN, icon: Users },
+  { id: 'billing', title: 'Billing', desc: 'Monthly statements', accent: GREEN, icon: Receipt },
+];
+
+function TileGrid({ tiles, setTab, pendingLabelCount, fill }) {
+  return (
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: fill ? 'repeat(auto-fit, minmax(220px, 1fr))' : 'repeat(2, 1fr)',
+      gridAutoRows: fill ? '1fr' : undefined,
+      gap: fill ? 16 : 12,
+      flex: fill ? 1 : undefined,
+    }}>
+      {tiles.map((t) => {
+        const badge = t.badgeKey === 'labels' ? pendingLabelCount : 0;
+        return (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            style={{
+              position: 'relative', textAlign: 'left', cursor: 'pointer',
+              background: '#fff', border: `1px solid ${LINE}`, borderRadius: 6,
+              padding: fill ? '28px 24px' : '20px 16px', minHeight: fill ? 140 : 96,
+              display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+            }}
+          >
+            {t.icon && <t.icon size={fill ? 26 : 20} strokeWidth={1.75} color={t.accent} style={{ marginBottom: fill ? 18 : 14 }} />}
+            <div>
+              <div style={{ fontFamily: 'Fraunces, serif', fontWeight: 600, fontSize: fill ? '1.3rem' : '1.05rem', color: CHARCOAL }}>
+                {t.title}
+                {badge > 0 && (
+                  <span style={{ marginLeft: 8, background: WHEAT, color: GREEN, fontFamily: 'monospace', fontSize: '0.65rem', fontWeight: 700, borderRadius: 10, padding: '1px 7px', verticalAlign: 'middle' }}>{badge}</span>
+                )}
+              </div>
+              <div style={{ fontSize: fill ? '0.85rem' : '0.78rem', color: '#6b6659', marginTop: 4 }}>{t.desc}</div>
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function HomeTab({ setTab, pendingLabelCount }) {
+  return <TileGrid tiles={HOME_TILES} setTab={setTab} pendingLabelCount={pendingLabelCount} fill />;
+}
+
+function InventoryMenuTab({ setTab, pendingLabelCount }) {
+  return <TileGrid tiles={INVENTORY_TILES} setTab={setTab} pendingLabelCount={pendingLabelCount} />;
+}
+
+function AccountsMenuTab({ setTab }) {
+  return <TileGrid tiles={ACCOUNTS_TILES} setTab={setTab} pendingLabelCount={0} />;
 }
 
 // Type-to-search picker — replaces dropdowns once the catalogue is in the hundreds.
@@ -667,6 +750,125 @@ function SalesTab({ products, customers, stockFor, recordSale }) {
           <div style={{ fontWeight: 400, fontSize: '0.76rem', color: '#6b6659', marginTop: 2 }}>Settled now, nothing added to the account</div>
         </button>
       </div>
+    </>
+  );
+}
+
+function QuoteTab({ products }) {
+  const [customerName, setCustomerName] = useState('');
+  const [cart, setCart] = useState([]);
+  const total = cart.reduce((s, it) => s + it.qty * it.price, 0);
+  const validUntil = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 14);
+    return d.toISOString().slice(0, 10);
+  })();
+
+  function handleSelect(p) {
+    const existing = cart.find((it) => it.productId === p.id);
+    if (existing) {
+      setCart(cart.map((it) => (it.productId === p.id ? { ...it, qty: it.qty + 1 } : it)));
+    } else {
+      setCart([...cart, { productId: p.id, name: p.name, price: p.price, qty: 1 }]);
+    }
+  }
+
+  function setQty(productId, qty) {
+    const q = Math.max(1, Number(qty) || 1);
+    setCart(cart.map((it) => (it.productId === productId ? { ...it, qty: q } : it)));
+  }
+
+  function bumpQty(productId, delta) {
+    const item = cart.find((it) => it.productId === productId);
+    if (!item) return;
+    setQty(productId, item.qty + delta);
+  }
+
+  function removeFromCart(productId) {
+    setCart(cart.filter((it) => it.productId !== productId));
+  }
+
+  return (
+    <>
+      <div className="no-print">
+        <Card>
+          <Label>Quote — no stock is affected</Label>
+          <div style={{ fontSize: '0.82rem', color: '#6b6659', marginBottom: 12 }}>
+            Builds a price, nothing else. Nothing here touches stock levels or account balances — this is for giving someone a number, not recording a sale.
+          </div>
+          <input
+            type="text" placeholder="Customer / farm name (optional)" value={customerName}
+            onChange={(e) => setCustomerName(e.target.value)}
+            style={{ width: '100%', padding: '9px 10px', border: `1px solid ${LINE}`, borderRadius: 3, background: PARCHMENT }}
+          />
+        </Card>
+
+        <Card style={{ overflow: 'visible' }}>
+          <Label>Add item</Label>
+          <ProductSearch products={products} onSelect={handleSelect} />
+        </Card>
+
+        {cart.length > 0 && (
+          <Card>
+            {cart.map((it) => (
+              <div key={it.productId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: `1px solid ${LINE}`, gap: 10 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{it.name}</div>
+                  <div style={{ fontSize: '0.76rem', color: '#6b6659' }}>{fmtMoney(it.price)} each</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <button onClick={() => bumpQty(it.productId, -1)} style={{ width: 26, height: 26, border: `1px solid ${LINE}`, borderRadius: 3, background: PARCHMENT, cursor: 'pointer', fontFamily: 'monospace', fontWeight: 700 }}>−</button>
+                  <input type="number" min="1" value={it.qty} onChange={(e) => setQty(it.productId, e.target.value)} style={{ width: 40, padding: '5px 2px', textAlign: 'center', border: `1px solid ${LINE}`, borderRadius: 3, fontFamily: 'monospace', background: PARCHMENT }} />
+                  <button onClick={() => bumpQty(it.productId, 1)} style={{ width: 26, height: 26, border: `1px solid ${LINE}`, borderRadius: 3, background: PARCHMENT, cursor: 'pointer', fontFamily: 'monospace', fontWeight: 700 }}>+</button>
+                </div>
+                <div style={{ fontFamily: 'monospace', width: 70, textAlign: 'right' }}>{fmtMoney(it.qty * it.price)}</div>
+                <button onClick={() => removeFromCart(it.productId)} style={{ background: 'none', border: 'none', color: WARN, cursor: 'pointer', fontSize: '0.8rem' }}>✕</button>
+              </div>
+            ))}
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 14, fontFamily: 'Fraunces, serif', fontSize: '1.25rem', fontWeight: 700 }}>
+              <span>Total</span><span style={{ fontFamily: 'monospace' }}>{fmtMoney(total)}</span>
+            </div>
+            <button onClick={() => window.print()} style={{ marginTop: 16, width: '100%', background: GREEN, color: PARCHMENT, border: 'none', padding: '12px 18px', borderRadius: 3, fontWeight: 600, cursor: 'pointer' }}>
+              Print quote
+            </button>
+          </Card>
+        )}
+      </div>
+
+      {cart.length > 0 && (
+        <Card style={{ padding: '28px 26px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22, borderBottom: `2px solid ${GREEN}`, paddingBottom: 16 }}>
+            <div>
+              <div style={{ fontFamily: 'Fraunces, serif', fontWeight: 600, fontSize: '1.3rem', color: GREEN }}>Roberts &amp; Bumford</div>
+              <div style={{ fontSize: '0.76rem', color: '#6b6659' }}>Agricultural Stores &amp; Chemicals · Newtown, Powys SY16 2JS</div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontFamily: 'monospace', fontSize: '0.76rem', color: '#8a8577', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Quote</div>
+              <div style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>{todayISO()}</div>
+            </div>
+          </div>
+
+          {customerName && (
+            <div style={{ marginBottom: 18, fontWeight: 600, fontSize: '1rem' }}>{customerName}</div>
+          )}
+
+          {cart.map((it, i) => (
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.84rem', padding: '8px 0', borderBottom: `1px solid ${LINE}` }}>
+              <span>{it.qty}× {it.name}</span>
+              <span style={{ fontFamily: 'monospace' }}>{fmtMoney(it.qty * it.price)}</span>
+            </div>
+          ))}
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 16, marginTop: 6, borderTop: `2px solid ${GREEN}`, fontFamily: 'Fraunces, serif', fontSize: '1.3rem', fontWeight: 700 }}>
+            <span>Total</span>
+            <span style={{ fontFamily: 'monospace' }}>{fmtMoney(total)}</span>
+          </div>
+
+          <div style={{ marginTop: 20, fontSize: '0.72rem', color: '#8a8577' }}>
+            This is a price quote, not an order — nothing has been reserved or deducted from stock. Prices valid until {validUntil}, subject to availability at the time of order.
+          </div>
+        </Card>
+      )}
     </>
   );
 }

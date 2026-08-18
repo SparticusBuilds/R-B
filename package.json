@@ -1,0 +1,16 @@
+{
+  "name": "rb-pos",
+  "private": true,
+  "scripts": {
+    "build": "esbuild entry.jsx --bundle --outfile=bundle.js --loader:.jsx=jsx --jsx=automatic --minify"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "papaparse": "^5.4.1",
+    "lucide-react": "0.383.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0"
+  }
+}

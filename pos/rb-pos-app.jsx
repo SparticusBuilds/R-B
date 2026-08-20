@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Papa from 'papaparse';
 import {
   ShoppingCart, FileText, RotateCcw, Boxes, Wallet,
-  Settings as SettingsIcon, Package, Tag, Truck, Printer, Users, Receipt,
+  Settings as SettingsIcon, Package, Tag, Truck, Printer, Users, Receipt, ClipboardList,
 } from 'lucide-react';
 
 const GREEN = '#1f3327';
@@ -41,11 +41,11 @@ function textColorFor(hex) {
 const STORAGE_KEY = 'rb-pos-data-v4';
 
 const SEED_PRODUCTS = [
-  { id: 'p1', name: 'Heptavac P Plus, 250ml', code: 'AH-1029', barcode: '5012345678900', category: 'POM-VPS', price: 68.0 },
-  { id: 'p2', name: 'Combinex, 5L', code: 'AH-0847', barcode: '5012345678917', category: 'NFA-VPS', price: 58.0 },
-  { id: 'p3', name: 'Footvax, 20-dose', code: 'AH-1103', barcode: '5012345678924', category: 'POM-VPS', price: 74.0 },
-  { id: 'p4', name: 'Baler twine, 130m', code: 'GEN-0201', barcode: '5012345678931', category: 'General', price: 12.5 },
-  { id: 'p5', name: 'Fencing wire, roll', code: 'GEN-0340', barcode: '5012345678948', category: 'General', price: 28.5 },
+  { id: 'p1', name: 'Heptavac P Plus, 250ml', code: 'AH-1029', barcode: '5012345678900', category: 'POM-VPS', price: 68.0, supplier: 'MSD Animal Health' },
+  { id: 'p2', name: 'Combinex, 5L', code: 'AH-0847', barcode: '5012345678917', category: 'NFA-VPS', price: 58.0, supplier: 'Elanco' },
+  { id: 'p3', name: 'Footvax, 20-dose', code: 'AH-1103', barcode: '5012345678924', category: 'POM-VPS', price: 74.0, supplier: 'MSD Animal Health' },
+  { id: 'p4', name: 'Baler twine, 130m', code: 'GEN-0201', barcode: '5012345678931', category: 'General', price: 12.5, supplier: 'General Farm Supplies' },
+  { id: 'p5', name: 'Fencing wire, roll', code: 'GEN-0340', barcode: '5012345678948', category: 'General', price: 28.5, supplier: 'General Farm Supplies' },
 ];
 
 const SEED_CUSTOMERS = [
@@ -65,6 +65,9 @@ function uid(prefix) {
 }
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
+}
+function nowHHMM() {
+  return new Date().toTimeString().slice(0, 5);
 }
 function fmtMoney(n) {
   return '£' + Number(n).toFixed(2);
@@ -129,6 +132,7 @@ export default function RBPos() {
   const [payments, setPayments] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [returns, setReturns] = useState([]);
+  const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [corrections, setCorrections] = useState([]);
   const [printedCorrectionIds, setPrintedCorrectionIds] = useState([]);
   const [lockAfterMinutes, setLockAfterMinutes] = useState(2);
@@ -150,6 +154,7 @@ export default function RBPos() {
           setPayments(data.payments || []);
           setTransactions(data.transactions || []);
           setReturns(data.returns || []);
+          setPurchaseOrders(data.purchaseOrders || []);
           setCorrections(data.corrections || []);
           setPrintedCorrectionIds(data.printedCorrectionIds || []);
           setLockAfterMinutes(data.lockAfterMinutes || 2);
@@ -185,7 +190,7 @@ export default function RBPos() {
       try {
         await window.storage.set(
           STORAGE_KEY,
-          JSON.stringify({ products, customers, staffList, currentStaff, stockBatches, payments, transactions, returns, corrections, printedCorrectionIds, lockAfterMinutes }),
+          JSON.stringify({ products, customers, staffList, currentStaff, stockBatches, payments, transactions, returns, purchaseOrders, corrections, printedCorrectionIds, lockAfterMinutes }),
           false
         );
       } catch (e) {
@@ -193,7 +198,7 @@ export default function RBPos() {
       }
       setSaving(false);
     })();
-  }, [products, customers, staffList, currentStaff, stockBatches, payments, transactions, returns, corrections, printedCorrectionIds, lockAfterMinutes, loaded]);
+  }, [products, customers, staffList, currentStaff, stockBatches, payments, transactions, returns, purchaseOrders, corrections, printedCorrectionIds, lockAfterMinutes, loaded]);
 
   // Inactivity lock: any interaction resets the timer; letting it run out shows the PIN screen.
   useEffect(() => {
@@ -220,6 +225,61 @@ export default function RBPos() {
     setStockBatches((prev) => [...prev, { id: uid('b'), productId, batch: batch || '—', qty, expiry, received: todayISO(), receivedBy: currentStaff }]);
   }
 
+  // Order refs are sequential per calendar year, same scheme as sale refs.
+  function nextOrderRef() {
+    const yy = String(new Date().getFullYear()).slice(-2);
+    const prefix = `PO-${yy}`;
+    const countThisYear = purchaseOrders.filter((o) => o.ref && o.ref.startsWith(prefix)).length;
+    return `${prefix}${String(countThisYear + 1).padStart(6, '0')}`;
+  }
+
+  function placeOrder({ supplier, lines }) {
+    const po = {
+      id: uid('po'), ref: nextOrderRef(), date: todayISO(), time: nowHHMM(),
+      supplier, staff: currentStaff, status: 'open',
+      lines: lines.map((l) => ({ productId: l.productId, name: l.name, qtyOrdered: l.qty, qtyReceived: 0, closed: false, closedReason: '' })),
+    };
+    setPurchaseOrders((prev) => [po, ...prev]);
+    return po;
+  }
+
+  function computeStatus(lines) {
+    const settled = lines.every((l) => l.qtyReceived >= l.qtyOrdered || l.closed);
+    if (!settled) return lines.some((l) => l.qtyReceived > 0) ? 'partial' : 'open';
+    return lines.some((l) => l.closed && l.qtyReceived < l.qtyOrdered) ? 'closed-short' : 'received';
+  }
+
+  // Books stock in against a specific order line — same stock-batch mechanism as ad-hoc
+  // goods-in, but also updates the order's running received quantity and status.
+  function receiveAgainstOrder({ orderId, productId, qty, batch, expiry }) {
+    receiveStock({ productId, batch, qty, expiry });
+    setPurchaseOrders((prev) => prev.map((po) => {
+      if (po.id !== orderId) return po;
+      const lines = po.lines.map((l) => (l.productId === productId ? { ...l, qtyReceived: l.qtyReceived + qty } : l));
+      return { ...po, lines, status: computeStatus(lines) };
+    }));
+  }
+
+  // Closes a single line off without it ever reaching the ordered quantity — for the
+  // "rest of this item isn't coming" case, without abandoning the rest of the order.
+  function closeOrderLine({ orderId, productId, reason }) {
+    setPurchaseOrders((prev) => prev.map((po) => {
+      if (po.id !== orderId) return po;
+      const lines = po.lines.map((l) => (l.productId === productId ? { ...l, closed: true, closedReason: reason || '' } : l));
+      return { ...po, lines, status: computeStatus(lines) };
+    }));
+  }
+
+  // Closes every still-outstanding line on the order at once — for "this delivery isn't
+  // coming at all", so the order stops sitting open indefinitely.
+  function closeRemainingOrder({ orderId, reason }) {
+    setPurchaseOrders((prev) => prev.map((po) => {
+      if (po.id !== orderId) return po;
+      const lines = po.lines.map((l) => (l.qtyReceived < l.qtyOrdered ? { ...l, closed: true, closedReason: reason || '' } : l));
+      return { ...po, lines, status: computeStatus(lines) };
+    }));
+  }
+
   function deductStock(productId, qtyNeeded) {
     let remaining = qtyNeeded;
     const consumed = [];
@@ -239,10 +299,23 @@ export default function RBPos() {
     return consumed;
   }
 
-  function recordSale({ customerId, items, method }) {
-    const total = items.reduce((s, it) => s + it.qty * it.price, 0);
-    const lineDetails = items.map((it) => ({ ...it, consumed: deductStock(it.productId, it.qty) }));
-    const tx = { id: uid('tx'), date: todayISO(), customerId, items: lineDetails, total, method, staff: currentStaff };
+  // Reference numbers are sequential per calendar year and never reused — transactions are
+  // only ever prepended, never removed, so counting existing refs for the current year is safe.
+  function nextSaleRef() {
+    const yy = String(new Date().getFullYear()).slice(-2);
+    const prefix = `RB-${yy}`;
+    const countThisYear = transactions.filter((t) => t.ref && t.ref.startsWith(prefix)).length;
+    return `${prefix}${String(countThisYear + 1).padStart(6, '0')}`;
+  }
+
+  function recordSale({ customerId, items, method, discountApprovedBy }) {
+    const total = items.reduce((s, it) => s + Math.max(0, it.qty * it.price - (it.discount || 0)), 0);
+    const discountTotal = items.reduce((s, it) => s + (it.discount || 0), 0);
+    const lineDetails = items.map((it) => ({ ...it, discount: it.discount || 0, consumed: deductStock(it.productId, it.qty) }));
+    const tx = {
+      id: uid('tx'), ref: nextSaleRef(), date: todayISO(), time: nowHHMM(), customerId, items: lineDetails, total, method, staff: currentStaff,
+      discountTotal, discountApprovedBy: discountTotal > 0 ? (discountApprovedBy || currentStaff) : '',
+    };
     setTransactions((prev) => [tx, ...prev]);
     return tx;
   }
@@ -324,6 +397,7 @@ export default function RBPos() {
         barcode: String(r.barcode || '').trim(),
         category: String(r.category || 'General').trim(),
         price: parseFloat(r.price) || 0,
+        supplier: String(r.supplier || '').trim(),
       }));
     setProducts((prev) => [...prev, ...added]);
     return added.length;
@@ -471,11 +545,13 @@ export default function RBPos() {
         ) : tab === 'accounts-menu' ? (
           <AccountsMenuTab setTab={setTab} />
         ) : tab === 'sales' ? (
-          <SalesTab products={products} customers={customers} stockFor={stockFor} recordSale={recordSale} />
+          <SalesTab products={products} customers={customers} stockFor={stockFor} recordSale={recordSale} staffList={staffList} />
         ) : tab === 'quote' ? (
           <QuoteTab products={products} />
         ) : tab === 'goodsin' ? (
-          <GoodsInTab products={products} receiveStock={receiveStock} />
+          <GoodsInTab products={products} receiveStock={receiveStock} purchaseOrders={purchaseOrders} receiveAgainstOrder={receiveAgainstOrder} closeOrderLine={closeOrderLine} closeRemainingOrder={closeRemainingOrder} />
+        ) : tab === 'order-supplier' ? (
+          <OrderSupplierTab products={products} placeOrder={placeOrder} purchaseOrders={purchaseOrders} />
         ) : tab === 'returns' ? (
           <ReturnsTab transactions={transactions} customers={customers} returns={returns} alreadyReturnedQty={alreadyReturnedQty} processReturn={processReturn} />
         ) : tab === 'stock' ? (
@@ -517,6 +593,7 @@ const HOME_TILES = [
 const INVENTORY_TILES = [
   { id: 'stock', title: 'Stock', desc: 'Check what\u2019s on the shelf', accent: GREEN_MID, icon: Package },
   { id: 'products', title: 'Products', desc: 'Catalogue & import', accent: WHEAT, icon: Tag },
+  { id: 'order-supplier', title: 'Order from Supplier', desc: 'Place a purchase order', accent: BLUE, icon: ClipboardList },
   { id: 'goodsin', title: 'Goods In', desc: 'Receive a delivery', accent: SLATE, icon: Truck },
   { id: 'labels', title: 'Labels', desc: 'Print price changes', accent: RUST, badgeKey: 'labels', icon: Printer },
 ];
@@ -660,13 +737,16 @@ function ProductSearch({ products, stockFor, onSelect, placeholder }) {
   );
 }
 
-function SalesTab({ products, customers, stockFor, recordSale }) {
+function SalesTab({ products, customers, stockFor, recordSale, staffList }) {
   const [customerId, setCustomerId] = useState(customers[0].id);
   const [cart, setCart] = useState([]);
   const [receipt, setReceipt] = useState(null);
+  const [pendingCheckout, setPendingCheckout] = useState(null); // 'account' | 'cash' while awaiting PIN confirm
 
   const customer = customers.find((c) => c.id === customerId);
-  const total = cart.reduce((s, it) => s + it.qty * it.price, 0);
+  const lineTotal = (it) => Math.max(0, it.qty * it.price - (it.discount || 0));
+  const total = cart.reduce((s, it) => s + lineTotal(it), 0);
+  const hasDiscount = cart.some((it) => (it.discount || 0) > 0);
 
   function handleSelect(p) {
     const available = stockFor(p.id);
@@ -682,7 +762,7 @@ function SalesTab({ products, customers, stockFor, recordSale }) {
       }
       setCart(cart.map((it) => (it.productId === p.id ? { ...it, qty: it.qty + 1 } : it)));
     } else {
-      setCart([...cart, { productId: p.id, name: p.name, price: p.price, qty: 1 }]);
+      setCart([...cart, { productId: p.id, name: p.name, price: p.price, qty: 1, discount: 0 }]);
     }
   }
 
@@ -698,27 +778,58 @@ function SalesTab({ products, customers, stockFor, recordSale }) {
     setQty(productId, item.qty + delta);
   }
 
+  function setDiscount(productId, value) {
+    setCart(cart.map((it) => {
+      if (it.productId !== productId) return it;
+      const cap = it.qty * it.price;
+      const d = Math.max(0, Math.min(Number(value) || 0, cap));
+      return { ...it, discount: d };
+    }));
+  }
+
   function removeFromCart(productId) {
     setCart(cart.filter((it) => it.productId !== productId));
   }
 
   function checkout(method) {
     if (cart.length === 0) { alert('Add at least one item first.'); return; }
-    const tx = recordSale({ customerId, items: cart, method });
+    if (hasDiscount) {
+      setPendingCheckout(method);
+      return;
+    }
+    finalizeCheckout(method);
+  }
+
+  function finalizeCheckout(method, discountApprovedBy) {
+    const tx = recordSale({ customerId, items: cart, method, discountApprovedBy });
     setReceipt(tx);
     setCart([]);
+    setPendingCheckout(null);
   }
 
   if (receipt) {
     return (
       <Card>
-        <div style={{ fontFamily: 'Fraunces, serif', fontSize: '1.3rem', color: GREEN, marginBottom: 6 }}>Sale recorded</div>
-        <div style={{ color: '#6b6659', fontSize: '0.88rem', marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+          <div style={{ fontFamily: 'Fraunces, serif', fontSize: '1.3rem', color: GREEN, marginBottom: 6 }}>Sale recorded</div>
+          <div style={{ fontFamily: 'monospace', fontSize: '0.85rem', color: GREEN, fontWeight: 700 }}>{receipt.ref}</div>
+        </div>
+        <div style={{ color: '#6b6659', fontSize: '0.88rem', marginBottom: 4 }}>
           {fmtMoney(receipt.total)} — {receipt.method === 'account' ? `booked to ${customer.name}'s account` : 'settled by cash / cheque'}
         </div>
+        <div style={{ color: '#8a8577', fontSize: '0.76rem', marginBottom: 4, fontFamily: 'monospace' }}>{receipt.date} {receipt.time}</div>
+        {receipt.discountTotal > 0 && (
+          <div style={{ color: '#6b6659', fontSize: '0.78rem', marginBottom: 12 }}>
+            Includes {fmtMoney(receipt.discountTotal)} discount, confirmed by {receipt.discountApprovedBy}
+          </div>
+        )}
+        <div style={{ fontSize: '0.72rem', color: '#8a8577', marginBottom: 12 }}>Keep this reference — it's what's needed to process a return.</div>
         {receipt.items.map((it, i) => (
           <div key={i} style={{ fontSize: '0.82rem', padding: '6px 0', borderTop: i === 0 ? 'none' : `1px solid ${LINE}` }}>
-            <div style={{ fontWeight: 600 }}>{it.name} × {it.qty}</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <div style={{ fontWeight: 600 }}>{it.name} × {it.qty}</div>
+              {it.discount > 0 && <div style={{ fontSize: '0.76rem', color: WARN }}>−{fmtMoney(it.discount)}</div>}
+            </div>
             <div style={{ fontFamily: 'monospace', fontSize: '0.72rem', color: '#8a8577' }}>
               from batch{it.consumed.length > 1 ? 'es' : ''}: {it.consumed.map((c) => `${c.batch} (${c.qty})`).join(', ')}
             </div>
@@ -728,6 +839,18 @@ function SalesTab({ products, customers, stockFor, recordSale }) {
           New sale
         </button>
       </Card>
+    );
+  }
+
+  if (pendingCheckout) {
+    return (
+      <DiscountConfirm
+        staffList={staffList}
+        total={total}
+        discountTotal={cart.reduce((s, it) => s + (it.discount || 0), 0)}
+        onCancel={() => setPendingCheckout(null)}
+        onConfirm={(staffName) => finalizeCheckout(pendingCheckout, staffName)}
+      />
     );
   }
 
@@ -748,23 +871,40 @@ function SalesTab({ products, customers, stockFor, recordSale }) {
       {cart.length > 0 && (
         <Card>
           {cart.map((it) => (
-            <div key={it.productId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: `1px solid ${LINE}`, gap: 10 }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{it.name}</div>
-                <div style={{ fontSize: '0.76rem', color: '#6b6659' }}>{fmtMoney(it.price)} each</div>
+            <div key={it.productId} style={{ padding: '10px 0', borderBottom: `1px solid ${LINE}` }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{it.name}</div>
+                  <div style={{ fontSize: '0.76rem', color: '#6b6659' }}>{fmtMoney(it.price)} each</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <button onClick={() => bumpQty(it.productId, -1)} style={{ width: 26, height: 26, border: `1px solid ${LINE}`, borderRadius: 3, background: PARCHMENT, cursor: 'pointer', fontFamily: 'monospace', fontWeight: 700 }}>−</button>
+                  <input type="number" min="1" value={it.qty} onChange={(e) => setQty(it.productId, e.target.value)} style={{ width: 40, padding: '5px 2px', textAlign: 'center', border: `1px solid ${LINE}`, borderRadius: 3, fontFamily: 'monospace', background: PARCHMENT }} />
+                  <button onClick={() => bumpQty(it.productId, 1)} style={{ width: 26, height: 26, border: `1px solid ${LINE}`, borderRadius: 3, background: PARCHMENT, cursor: 'pointer', fontFamily: 'monospace', fontWeight: 700 }}>+</button>
+                </div>
+                <div style={{ fontFamily: 'monospace', width: 70, textAlign: 'right' }}>{fmtMoney(lineTotal(it))}</div>
+                <button onClick={() => removeFromCart(it.productId)} style={{ background: 'none', border: 'none', color: WARN, cursor: 'pointer', fontSize: '0.8rem' }}>✕</button>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <button onClick={() => bumpQty(it.productId, -1)} style={{ width: 26, height: 26, border: `1px solid ${LINE}`, borderRadius: 3, background: PARCHMENT, cursor: 'pointer', fontFamily: 'monospace', fontWeight: 700 }}>−</button>
-                <input type="number" min="1" value={it.qty} onChange={(e) => setQty(it.productId, e.target.value)} style={{ width: 40, padding: '5px 2px', textAlign: 'center', border: `1px solid ${LINE}`, borderRadius: 3, fontFamily: 'monospace', background: PARCHMENT }} />
-                <button onClick={() => bumpQty(it.productId, 1)} style={{ width: 26, height: 26, border: `1px solid ${LINE}`, borderRadius: 3, background: PARCHMENT, cursor: 'pointer', fontFamily: 'monospace', fontWeight: 700 }}>+</button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, paddingLeft: 2 }}>
+                <span style={{ fontSize: '0.74rem', color: '#8a8577' }}>Discount £</span>
+                <input
+                  type="number" min="0" step="0.01" placeholder="0.00"
+                  value={it.discount || ''}
+                  onChange={(e) => setDiscount(it.productId, e.target.value)}
+                  style={{ width: 70, padding: '4px 6px', border: `1px solid ${LINE}`, borderRadius: 3, fontFamily: 'monospace', fontSize: '0.78rem', background: PARCHMENT }}
+                />
+                {it.discount > 0 && <span style={{ fontSize: '0.72rem', color: WARN }}>off this line</span>}
               </div>
-              <div style={{ fontFamily: 'monospace', width: 70, textAlign: 'right' }}>{fmtMoney(it.qty * it.price)}</div>
-              <button onClick={() => removeFromCart(it.productId)} style={{ background: 'none', border: 'none', color: WARN, cursor: 'pointer', fontSize: '0.8rem' }}>✕</button>
             </div>
           ))}
           <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 14, fontFamily: 'Fraunces, serif', fontSize: '1.25rem', fontWeight: 700 }}>
             <span>Total</span><span style={{ fontFamily: 'monospace' }}>{fmtMoney(total)}</span>
           </div>
+          {hasDiscount && (
+            <div style={{ fontSize: '0.76rem', color: WARN, marginTop: 4 }}>
+              Discount applied — a PIN confirmation will be asked for at checkout.
+            </div>
+          )}
         </Card>
       )}
 
@@ -779,6 +919,43 @@ function SalesTab({ products, customers, stockFor, recordSale }) {
         </button>
       </div>
     </>
+  );
+}
+
+function DiscountConfirm({ staffList, total, discountTotal, onCancel, onConfirm }) {
+  const [pin, setPin] = useState('');
+  const [error, setError] = useState(false);
+
+  function submit() {
+    const match = staffList.find((s) => s.pin === String(pin).trim());
+    if (!match) { setError(true); setPin(''); return; }
+    onConfirm(match.name);
+  }
+
+  function handleKeyDown(e) {
+    if (e.key === 'Enter') submit();
+  }
+
+  return (
+    <Card>
+      <div style={{ fontFamily: 'Fraunces, serif', fontSize: '1.15rem', color: GREEN, marginBottom: 6 }}>Confirm discount</div>
+      <div style={{ fontSize: '0.85rem', color: '#6b6659', marginBottom: 4 }}>
+        This sale includes {fmtMoney(discountTotal)} of line discounts. Total after discount: {fmtMoney(total)}.
+      </div>
+      <div style={{ fontSize: '0.82rem', color: '#6b6659', marginBottom: 14 }}>Enter an employee number to confirm and complete the sale.</div>
+      <input
+        type="password" inputMode="numeric" autoFocus
+        value={pin}
+        onChange={(e) => { setPin(e.target.value); setError(false); }}
+        onKeyDown={handleKeyDown}
+        style={{ width: 160, textAlign: 'center', fontSize: '1.1rem', letterSpacing: '0.25em', padding: '10px', borderRadius: 4, border: `1px solid ${error ? WARN : LINE}`, background: PARCHMENT, fontFamily: 'monospace', marginBottom: 10 }}
+      />
+      {error && <div style={{ fontSize: '0.78rem', color: WARN, marginBottom: 10 }}>Number not recognised — try again.</div>}
+      <div style={{ display: 'flex', gap: 10 }}>
+        <button onClick={submit} style={{ background: GREEN, color: PARCHMENT, border: 'none', padding: '10px 20px', borderRadius: 3, fontWeight: 600, cursor: 'pointer' }}>Confirm sale</button>
+        <button onClick={onCancel} style={{ background: '#fff', color: CHARCOAL, border: `1px solid ${LINE}`, padding: '10px 20px', borderRadius: 3, fontWeight: 600, cursor: 'pointer' }}>Back to cart</button>
+      </div>
+    </Card>
   );
 }
 
@@ -901,12 +1078,253 @@ function QuoteTab({ products }) {
   );
 }
 
-function GoodsInTab({ products, receiveStock }) {
+function OrderSupplierTab({ products, placeOrder, purchaseOrders }) {
+  const [supplier, setSupplier] = useState('');
+  const [qtys, setQtys] = useState({});
+  const [confirmed, setConfirmed] = useState(null);
+
+  const supplierNames = [...new Set(products.map((p) => p.supplier).filter(Boolean))].sort();
+  const supplierProducts = supplier ? products.filter((p) => p.supplier === supplier) : [];
+  const recentForSupplier = supplier ? purchaseOrders.filter((o) => o.supplier === supplier).slice(0, 5) : [];
+
+  function setQty(productId, qty) {
+    setQtys((prev) => ({ ...prev, [productId]: Math.max(0, Number(qty) || 0) }));
+  }
+  function bump(productId, delta) {
+    setQty(productId, (qtys[productId] || 0) + delta);
+  }
+
+  function submit() {
+    const lines = supplierProducts
+      .filter((p) => (qtys[p.id] || 0) > 0)
+      .map((p) => ({ productId: p.id, name: p.name, qty: qtys[p.id] }));
+    if (lines.length === 0) { alert('Enter a quantity for at least one product.'); return; }
+    const po = placeOrder({ supplier, lines });
+    setConfirmed(po);
+    setQtys({});
+  }
+
+  if (confirmed) {
+    return (
+      <Card>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+          <div style={{ fontFamily: 'Fraunces, serif', fontSize: '1.3rem', color: GREEN, marginBottom: 6 }}>Order placed</div>
+          <div style={{ fontFamily: 'monospace', fontSize: '0.85rem', color: GREEN, fontWeight: 700 }}>{confirmed.ref}</div>
+        </div>
+        <div style={{ color: '#6b6659', fontSize: '0.88rem', marginBottom: 12 }}>{confirmed.supplier}</div>
+        {confirmed.lines.map((l, i) => (
+          <div key={i} style={{ fontSize: '0.85rem', padding: '6px 0', borderTop: i === 0 ? 'none' : `1px solid ${LINE}` }}>
+            <b>{l.qtyOrdered}×</b> {l.name}
+          </div>
+        ))}
+        <div style={{ fontSize: '0.76rem', color: '#8a8577', marginTop: 10 }}>Use this reference under Goods In when the delivery arrives.</div>
+        <button onClick={() => setConfirmed(null)} style={{ marginTop: 16, background: GREEN, color: PARCHMENT, border: 'none', padding: '10px 18px', borderRadius: 3, fontWeight: 600, cursor: 'pointer' }}>
+          Place another order
+        </button>
+      </Card>
+    );
+  }
+
+  return (
+    <>
+      <Card>
+        <Label>Supplier</Label>
+        <input
+          type="text" list="order-supplier-names" placeholder="Type or pick a supplier…"
+          value={supplier} onChange={(e) => { setSupplier(e.target.value); setQtys({}); }}
+          style={{ width: '100%', padding: '9px 10px', border: `1px solid ${LINE}`, borderRadius: 3, background: PARCHMENT }}
+        />
+        <datalist id="order-supplier-names">
+          {supplierNames.map((s) => <option key={s} value={s} />)}
+        </datalist>
+        {supplierNames.length === 0 && (
+          <div style={{ fontSize: '0.78rem', color: '#8a8577', marginTop: 8 }}>
+            No products have a supplier assigned yet — add one under Inventory → Products first.
+          </div>
+        )}
+      </Card>
+
+      {supplier && supplierProducts.length === 0 && (
+        <Card><div style={{ fontSize: '0.85rem', color: '#8a8577' }}>No products are listed against "{supplier}" yet.</div></Card>
+      )}
+
+      {supplierProducts.length > 0 && (
+        <Card>
+          <Label>Products from {supplier}</Label>
+          {supplierProducts.map((p) => (
+            <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: `1px solid ${LINE}`, gap: 10 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{p.name}</div>
+                <div style={{ fontSize: '0.76rem', color: '#6b6659', fontFamily: 'monospace' }}>{p.code}</div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <button onClick={() => bump(p.id, -1)} style={{ width: 26, height: 26, border: `1px solid ${LINE}`, borderRadius: 3, background: PARCHMENT, cursor: 'pointer', fontFamily: 'monospace', fontWeight: 700 }}>−</button>
+                <input type="number" min="0" value={qtys[p.id] || 0} onChange={(e) => setQty(p.id, e.target.value)} style={{ width: 50, padding: '5px 2px', textAlign: 'center', border: `1px solid ${LINE}`, borderRadius: 3, fontFamily: 'monospace', background: PARCHMENT }} />
+                <button onClick={() => bump(p.id, 1)} style={{ width: 26, height: 26, border: `1px solid ${LINE}`, borderRadius: 3, background: PARCHMENT, cursor: 'pointer', fontFamily: 'monospace', fontWeight: 700 }}>+</button>
+              </div>
+            </div>
+          ))}
+          <button onClick={submit} style={{ marginTop: 14, background: GREEN, color: PARCHMENT, border: 'none', padding: '12px 18px', borderRadius: 3, fontWeight: 600, cursor: 'pointer', width: '100%' }}>
+            Place order
+          </button>
+        </Card>
+      )}
+
+      {recentForSupplier.length > 0 && (
+        <Card>
+          <Label>Recent orders to {supplier}</Label>
+          {recentForSupplier.map((o) => (
+            <div key={o.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', padding: '6px 0', borderTop: `1px solid ${LINE}` }}>
+              <span style={{ fontFamily: 'monospace' }}>{o.ref}</span>
+              <span style={{ color: '#6b6659' }}>{o.date}</span>
+              <span style={{ fontWeight: 600, color: o.status === 'received' ? OK : o.status === 'partial' ? WHEAT : o.status === 'closed-short' ? WARN : RUST }}>
+                {o.status === 'received' ? 'Received' : o.status === 'partial' ? 'Partially received' : o.status === 'closed-short' ? 'Closed — short delivered' : 'Awaiting delivery'}
+              </span>
+            </div>
+          ))}
+        </Card>
+      )}
+    </>
+  );
+}
+
+function CloseLineControl({ onClose }) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState('');
+
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} style={{ background: 'none', border: 'none', color: RUST, cursor: 'pointer', fontSize: '0.74rem', textDecoration: 'underline', marginTop: 6 }}>
+        Rest of this item isn't coming
+      </button>
+    );
+  }
+  return (
+    <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+      <input
+        type="text" placeholder="Why (e.g. supplier out of stock)…" value={reason} onChange={(e) => setReason(e.target.value)}
+        style={{ flex: 1, minWidth: 160, padding: '6px 8px', border: `1px solid ${LINE}`, borderRadius: 3, fontSize: '0.8rem', background: PARCHMENT }}
+      />
+      <button
+        onClick={() => { if (!reason.trim()) { alert('Enter a short reason.'); return; } onClose(reason.trim()); setOpen(false); setReason(''); }}
+        style={{ background: WARN, color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 3, fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer' }}
+      >
+        Close this line
+      </button>
+      <button onClick={() => setOpen(false)} style={{ background: 'none', border: `1px solid ${LINE}`, padding: '6px 12px', borderRadius: 3, fontSize: '0.76rem', cursor: 'pointer' }}>Cancel</button>
+    </div>
+  );
+}
+
+function OrderBookIn({ order, products, receiveAgainstOrder, closeOrderLine, closeRemainingOrder }) {
+  const [entries, setEntries] = useState({});
+  const [closingOrder, setClosingOrder] = useState(false);
+  const [orderCloseReason, setOrderCloseReason] = useState('');
+
+  function setEntry(productId, field, value) {
+    setEntries((prev) => ({ ...prev, [productId]: { ...prev[productId], [field]: value } }));
+  }
+
+  function bookLine(line) {
+    const e = entries[line.productId] || {};
+    const qty = Number(e.qty) || 0;
+    if (qty <= 0) { alert('Enter a quantity received.'); return; }
+    receiveAgainstOrder({ orderId: order.id, productId: line.productId, qty, batch: e.batch || '', expiry: e.expiry || '' });
+    setEntries((prev) => ({ ...prev, [line.productId]: { batch: '', qty: '', expiry: '' } }));
+  }
+
+  const outstanding = order.lines.filter((l) => l.qtyReceived < l.qtyOrdered && !l.closed);
+
+  return (
+    <Card>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+        <Label>{order.ref} — {order.supplier}</Label>
+        {order.status === 'closed-short' && <span style={{ fontSize: '0.72rem', color: WARN, fontWeight: 600 }}>Closed — short delivered</span>}
+        {order.status === 'received' && <span style={{ fontSize: '0.72rem', color: OK, fontWeight: 600 }}>Fully received</span>}
+      </div>
+      {order.lines.map((line) => {
+        const remaining = line.qtyOrdered - line.qtyReceived;
+        const e = entries[line.productId] || {};
+        const fullyReceived = remaining <= 0;
+        return (
+          <div key={line.productId} style={{ padding: '12px 0', borderTop: `1px solid ${LINE}` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>{line.name}</div>
+              <div style={{ fontFamily: 'monospace', fontSize: '0.78rem', color: fullyReceived ? OK : line.closed ? WARN : '#6b6659' }}>
+                {line.qtyReceived} / {line.qtyOrdered} received
+              </div>
+            </div>
+            {fullyReceived ? (
+              <div style={{ fontSize: '0.78rem', color: OK, marginTop: 4 }}>✓ Fully received</div>
+            ) : line.closed ? (
+              <div style={{ fontSize: '0.78rem', color: WARN, marginTop: 4 }}>
+                Closed short — {line.qtyReceived} received, {remaining} won't be coming{line.closedReason ? ` (${line.closedReason})` : ''}
+              </div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+                  <input type="text" placeholder="Batch number" value={e.batch || ''} onChange={(ev) => setEntry(line.productId, 'batch', ev.target.value)} style={{ flex: 1, minWidth: 100, padding: '7px 8px', border: `1px solid ${LINE}`, borderRadius: 3, fontFamily: 'monospace', background: PARCHMENT }} />
+                  <input type="number" min="1" placeholder={`Qty (${remaining} outstanding)`} value={e.qty || ''} onChange={(ev) => setEntry(line.productId, 'qty', ev.target.value)} style={{ width: 140, padding: '7px 8px', border: `1px solid ${LINE}`, borderRadius: 3, fontFamily: 'monospace', background: PARCHMENT }} />
+                  <input type="date" value={e.expiry || ''} onChange={(ev) => setEntry(line.productId, 'expiry', ev.target.value)} style={{ padding: '7px 8px', border: `1px solid ${LINE}`, borderRadius: 3, fontFamily: 'monospace', background: PARCHMENT }} />
+                  <button onClick={() => bookLine(line)} style={{ background: GREEN, color: PARCHMENT, border: 'none', padding: '7px 14px', borderRadius: 3, fontWeight: 600, cursor: 'pointer' }}>Book in</button>
+                </div>
+                {Number(e.qty) > remaining && (
+                  <div style={{ fontSize: '0.74rem', color: WARN, marginTop: 4 }}>More than the outstanding amount — will still be booked in, but worth checking against the delivery note.</div>
+                )}
+                <CloseLineControl onClose={(reason) => closeOrderLine({ orderId: order.id, productId: line.productId, reason })} />
+              </>
+            )}
+          </div>
+        );
+      })}
+
+      {outstanding.length > 0 && (
+        <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${LINE}` }}>
+          {!closingOrder ? (
+            <button onClick={() => setClosingOrder(true)} style={{ background: 'none', border: `1px solid ${WARN}`, color: WARN, padding: '8px 14px', borderRadius: 3, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
+              This delivery isn't coming — close the rest of the order
+            </button>
+          ) : (
+            <div>
+              <div style={{ fontSize: '0.8rem', color: '#6b6659', marginBottom: 6 }}>
+                Closes {outstanding.length} outstanding line{outstanding.length > 1 ? 's' : ''} without receiving them. Anything already booked in stays on the shelf.
+              </div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <input
+                  type="text" placeholder="Why…" value={orderCloseReason} onChange={(e) => setOrderCloseReason(e.target.value)}
+                  style={{ flex: 1, minWidth: 160, padding: '7px 8px', border: `1px solid ${LINE}`, borderRadius: 3, fontSize: '0.8rem', background: PARCHMENT }}
+                />
+                <button
+                  onClick={() => {
+                    if (!orderCloseReason.trim()) { alert('Enter a short reason.'); return; }
+                    closeRemainingOrder({ orderId: order.id, reason: orderCloseReason.trim() });
+                    setClosingOrder(false);
+                    setOrderCloseReason('');
+                  }}
+                  style={{ background: WARN, color: '#fff', border: 'none', padding: '7px 14px', borderRadius: 3, fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Confirm — close order
+                </button>
+                <button onClick={() => setClosingOrder(false)} style={{ background: 'none', border: `1px solid ${LINE}`, padding: '7px 14px', borderRadius: 3, fontSize: '0.8rem', cursor: 'pointer' }}>Cancel</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function GoodsInTab({ products, receiveStock, purchaseOrders, receiveAgainstOrder, closeOrderLine, closeRemainingOrder }) {
+  const [orderId, setOrderId] = useState('');
   const [selected, setSelected] = useState(null);
   const [batch, setBatch] = useState('');
   const [qty, setQty] = useState(1);
   const [expiry, setExpiry] = useState('');
   const [confirmedList, setConfirmedList] = useState([]);
+
+  const openOrders = purchaseOrders.filter((o) => o.status === 'open' || o.status === 'partial');
+  const order = orderId ? purchaseOrders.find((o) => o.id === orderId) : null;
 
   function submit() {
     if (!selected) { alert('Search and select a product first.'); return; }
@@ -921,39 +1339,58 @@ function GoodsInTab({ products, receiveStock }) {
 
   return (
     <>
-      <Card style={{ overflow: 'visible' }}>
-        <Label>Product</Label>
-        {selected ? (
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: PARCHMENT, border: `1px solid ${WHEAT}`, borderRadius: 3, padding: '10px 12px', marginBottom: 10 }}>
-            <div>
-              <div style={{ fontWeight: 600 }}>{selected.name}</div>
-              <div style={{ fontSize: '0.75rem', color: '#8a8577', fontFamily: 'monospace' }}>{selected.code} · {selected.category}</div>
-            </div>
-            <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: RUST, cursor: 'pointer', fontSize: '0.78rem' }}>Change</button>
-          </div>
-        ) : (
-          <ProductSearch products={products} onSelect={setSelected} placeholder="Search product to receive…" />
+      <Card>
+        <Label>Booking against an order?</Label>
+        <select value={orderId} onChange={(e) => setOrderId(e.target.value)} style={{ width: '100%', padding: '9px 10px', border: `1px solid ${LINE}`, borderRadius: 3, background: PARCHMENT }}>
+          <option value="">No — ad-hoc receipt</option>
+          {openOrders.map((o) => (
+            <option key={o.id} value={o.id}>{o.ref} · {o.supplier} · {o.date}{o.status === 'partial' ? ' (partly received)' : ''}</option>
+          ))}
+        </select>
+        {openOrders.length === 0 && (
+          <div style={{ fontSize: '0.76rem', color: '#8a8577', marginTop: 6 }}>No open orders. Place one under Inventory → Order from Supplier.</div>
         )}
-
-        <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-          <input type="text" placeholder="Batch number" value={batch} onChange={(e) => setBatch(e.target.value)} style={{ flex: 1, padding: '9px 10px', border: `1px solid ${LINE}`, borderRadius: 3, fontFamily: 'monospace', background: PARCHMENT }} />
-          <input type="number" min="1" placeholder="Qty" value={qty} onChange={(e) => setQty(e.target.value)} style={{ width: 80, padding: '9px 10px', border: `1px solid ${LINE}`, borderRadius: 3, fontFamily: 'monospace', background: PARCHMENT }} />
-          <input type="date" value={expiry} onChange={(e) => setExpiry(e.target.value)} style={{ flex: 1, padding: '9px 10px', border: `1px solid ${LINE}`, borderRadius: 3, fontFamily: 'monospace', background: PARCHMENT }} />
-        </div>
-        <button onClick={submit} style={{ marginTop: 10, background: GREEN, color: PARCHMENT, border: 'none', padding: '11px 16px', borderRadius: 3, fontWeight: 600, cursor: 'pointer', width: '100%' }}>
-          Add to stock
-        </button>
       </Card>
 
-      {confirmedList.length > 0 && (
-        <Card>
-          <Label>Added this session</Label>
-          {confirmedList.map((c, i) => (
-            <div key={i} style={{ fontSize: '0.85rem', padding: '8px 0', borderTop: i === 0 ? 'none' : `1px solid ${LINE}` }}>
-              <b>{c.qty}×</b> {c.name} <span style={{ fontFamily: 'monospace', color: '#8a8577' }}>batch {c.batch}{c.expiry ? `, exp ${c.expiry}` : ''}</span>
+      {order ? (
+        <OrderBookIn order={order} products={products} receiveAgainstOrder={receiveAgainstOrder} closeOrderLine={closeOrderLine} closeRemainingOrder={closeRemainingOrder} />
+      ) : (
+        <>
+          <Card style={{ overflow: 'visible' }}>
+            <Label>Product</Label>
+            {selected ? (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: PARCHMENT, border: `1px solid ${WHEAT}`, borderRadius: 3, padding: '10px 12px', marginBottom: 10 }}>
+                <div>
+                  <div style={{ fontWeight: 600 }}>{selected.name}</div>
+                  <div style={{ fontSize: '0.75rem', color: '#8a8577', fontFamily: 'monospace' }}>{selected.code} · {selected.category}</div>
+                </div>
+                <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: RUST, cursor: 'pointer', fontSize: '0.78rem' }}>Change</button>
+              </div>
+            ) : (
+              <ProductSearch products={products} onSelect={setSelected} placeholder="Search product to receive…" />
+            )}
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <input type="text" placeholder="Batch number" value={batch} onChange={(e) => setBatch(e.target.value)} style={{ flex: 1, padding: '9px 10px', border: `1px solid ${LINE}`, borderRadius: 3, fontFamily: 'monospace', background: PARCHMENT }} />
+              <input type="number" min="1" placeholder="Qty" value={qty} onChange={(e) => setQty(e.target.value)} style={{ width: 80, padding: '9px 10px', border: `1px solid ${LINE}`, borderRadius: 3, fontFamily: 'monospace', background: PARCHMENT }} />
+              <input type="date" value={expiry} onChange={(e) => setExpiry(e.target.value)} style={{ flex: 1, padding: '9px 10px', border: `1px solid ${LINE}`, borderRadius: 3, fontFamily: 'monospace', background: PARCHMENT }} />
             </div>
-          ))}
-        </Card>
+            <button onClick={submit} style={{ marginTop: 10, background: GREEN, color: PARCHMENT, border: 'none', padding: '11px 16px', borderRadius: 3, fontWeight: 600, cursor: 'pointer', width: '100%' }}>
+              Add to stock
+            </button>
+          </Card>
+
+          {confirmedList.length > 0 && (
+            <Card>
+              <Label>Added this session</Label>
+              {confirmedList.map((c, i) => (
+                <div key={i} style={{ fontSize: '0.85rem', padding: '8px 0', borderTop: i === 0 ? 'none' : `1px solid ${LINE}` }}>
+                  <b>{c.qty}×</b> {c.name} <span style={{ fontFamily: 'monospace', color: '#8a8577' }}>batch {c.batch}{c.expiry ? `, exp ${c.expiry}` : ''}</span>
+                </div>
+              ))}
+            </Card>
+          )}
+        </>
       )}
     </>
   );
@@ -1071,28 +1508,31 @@ function ProductsTab({ products, addProduct, importProducts, editProduct }) {
   const [barcode, setBarcode] = useState('');
   const [category, setCategory] = useState('General');
   const [price, setPrice] = useState('');
+  const [supplier, setSupplier] = useState('');
   const [filter, setFilter] = useState('');
   const [importMsg, setImportMsg] = useState('');
   const [reviewQueue, setReviewQueue] = useState([]);
   const [pendingManual, setPendingManual] = useState(null);
   const fileRef = useRef(null);
 
+  const supplierNames = [...new Set(products.map((p) => p.supplier).filter(Boolean))].sort();
+
   function submit() {
     if (!name.trim()) { alert('Enter a product name.'); return; }
-    const candidate = { name: name.trim(), code: code.trim(), barcode: barcode.trim(), category, price: parseFloat(price) || 0 };
+    const candidate = { name: name.trim(), code: code.trim(), barcode: barcode.trim(), category, price: parseFloat(price) || 0, supplier: supplier.trim() };
     const match = findBestMatch(products, candidate);
     if (match) {
       setPendingManual({ candidate, match: match.product, score: match.score, reason: match.reason });
       return;
     }
     addProduct(candidate);
-    setName(''); setCode(''); setBarcode(''); setPrice('');
+    setName(''); setCode(''); setBarcode(''); setPrice(''); setSupplier('');
   }
 
   function resolvePendingManual(action) {
     if (action === 'add') {
       addProduct(pendingManual.candidate);
-      setName(''); setCode(''); setBarcode(''); setPrice('');
+      setName(''); setCode(''); setBarcode(''); setPrice(''); setSupplier('');
     }
     setPendingManual(null);
   }
@@ -1107,6 +1547,12 @@ function ProductsTab({ products, addProduct, importProducts, editProduct }) {
   function handleFile(e) {
     const file = e.target.files[0];
     if (!file) return;
+    const lower = file.name.toLowerCase();
+    if (lower.endsWith('.xlsx') || lower.endsWith('.xls')) {
+      setImportMsg('That\u2019s an Excel file \u2014 this importer only reads CSV. In Excel/Google Sheets, use \u201cSave As\u201d / \u201cDownload\u201d \u2192 CSV, then upload that file instead.');
+      e.target.value = '';
+      return;
+    }
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
@@ -1122,6 +1568,7 @@ function ProductsTab({ products, addProduct, importProducts, editProduct }) {
             barcode: String(r.barcode || '').trim(),
             category: String(r.category || 'General').trim(),
             price: parseFloat(r.price) || 0,
+            supplier: String(r.supplier || '').trim(),
           };
           const match = findBestMatch(runningCatalogue, candidate);
           if (match) {
@@ -1149,7 +1596,7 @@ function ProductsTab({ products, addProduct, importProducts, editProduct }) {
       <Card>
         <Label>Bulk import (CSV)</Label>
         <div style={{ fontSize: '0.82rem', color: '#6b6659', marginBottom: 10 }}>
-          Columns: <span style={{ fontFamily: 'monospace' }}>name, code, barcode, category, price</span>. Anything spelt similarly to an existing product, sharing a code, or sharing a barcode, gets held for you to check rather than added automatically.
+          Columns: <span style={{ fontFamily: 'monospace' }}>name, code, barcode, category, price, supplier</span> (supplier is optional, needed only if you'll order this item via Inventory → Order from Supplier). Anything spelt similarly to an existing product, sharing a code, or sharing a barcode, gets held for you to check rather than added automatically.
         </div>
         <input ref={fileRef} type="file" accept=".csv" onChange={handleFile} style={{ fontSize: '0.85rem' }} />
         {importMsg && <div style={{ marginTop: 8, fontSize: '0.82rem', color: OK }}>{importMsg}</div>}
@@ -1179,6 +1626,14 @@ function ProductsTab({ products, addProduct, importProducts, editProduct }) {
             </select>
             <input type="number" step="0.01" placeholder="Price" value={price} onChange={(e) => setPrice(e.target.value)} style={{ width: 90, padding: '9px 10px', border: `1px solid ${LINE}`, borderRadius: 3, fontFamily: 'monospace', background: PARCHMENT }} />
           </div>
+          <input
+            type="text" list="supplier-names" placeholder="Supplier (optional — needed to order this item)"
+            value={supplier} onChange={(e) => setSupplier(e.target.value)}
+            style={{ padding: '9px 10px', border: `1px solid ${LINE}`, borderRadius: 3, background: PARCHMENT }}
+          />
+          <datalist id="supplier-names">
+            {supplierNames.map((s) => <option key={s} value={s} />)}
+          </datalist>
           <button onClick={submit} style={{ background: GREEN_MID, color: PARCHMENT, border: 'none', padding: '10px 16px', borderRadius: 3, fontWeight: 600, cursor: 'pointer' }}>Add product</button>
           {pendingManual && (
             <ReviewCard item={pendingManual} onResolve={resolvePendingManual} />
@@ -1190,24 +1645,25 @@ function ProductsTab({ products, addProduct, importProducts, editProduct }) {
         <Label>Catalogue ({products.length})</Label>
         <input type="text" placeholder="Filter…" value={filter} onChange={(e) => setFilter(e.target.value)} style={{ width: '100%', padding: '8px 10px', border: `1px solid ${LINE}`, borderRadius: 3, background: PARCHMENT, marginBottom: 10 }} />
         <div style={{ maxHeight: 340, overflowY: 'auto' }}>
-          {filtered.map((p) => <ProductRow key={p.id} product={p} editProduct={editProduct} />)}
+          {filtered.map((p) => <ProductRow key={p.id} product={p} editProduct={editProduct} supplierNames={supplierNames} />)}
         </div>
       </Card>
     </>
   );
 }
 
-function ProductRow({ product, editProduct }) {
+function ProductRow({ product, editProduct, supplierNames }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(product.name);
   const [code, setCode] = useState(product.code);
   const [barcode, setBarcode] = useState(product.barcode || '');
   const [price, setPrice] = useState(product.price);
+  const [supplier, setSupplier] = useState(product.supplier || '');
   const [reason, setReason] = useState('');
 
   function save() {
     if (!reason.trim()) { alert('Enter a reason for this correction.'); return; }
-    editProduct(product.id, { name: name.trim(), code: code.trim(), barcode: barcode.trim(), price: parseFloat(price) || 0 }, reason.trim());
+    editProduct(product.id, { name: name.trim(), code: code.trim(), barcode: barcode.trim(), price: parseFloat(price) || 0, supplier: supplier.trim() }, reason.trim());
     setEditing(false);
     setReason('');
   }
@@ -1215,7 +1671,7 @@ function ProductRow({ product, editProduct }) {
   if (!editing) {
     return (
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: `1px solid ${LINE}`, fontSize: '0.82rem' }}>
-        <span>{product.name} <span style={{ color: '#8a8577', fontFamily: 'monospace', fontSize: '0.72rem' }}>{product.code}{product.barcode ? ` · ${product.barcode}` : ''}</span></span>
+        <span>{product.name} <span style={{ color: '#8a8577', fontFamily: 'monospace', fontSize: '0.72rem' }}>{product.code}{product.barcode ? ` · ${product.barcode}` : ''}{product.supplier ? ` · ${product.supplier}` : ''}</span></span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontFamily: 'monospace' }}>{fmtMoney(product.price)}</span>
           <button onClick={() => setEditing(true)} style={{ background: 'none', border: 'none', color: RUST, cursor: 'pointer', fontSize: '0.72rem', textDecoration: 'underline' }}>Edit</button>
@@ -1231,6 +1687,10 @@ function ProductRow({ product, editProduct }) {
         <input type="text" value={code} onChange={(e) => setCode(e.target.value)} placeholder="Code" style={{ width: 90, padding: '6px 8px', border: `1px solid ${LINE}`, borderRadius: 3, fontFamily: 'monospace', background: '#fff' }} />
         <input type="text" value={barcode} onChange={(e) => setBarcode(e.target.value)} placeholder="Barcode" style={{ width: 120, padding: '6px 8px', border: `1px solid ${LINE}`, borderRadius: 3, fontFamily: 'monospace', background: '#fff' }} />
         <input type="number" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} style={{ width: 80, padding: '6px 8px', border: `1px solid ${LINE}`, borderRadius: 3, fontFamily: 'monospace', background: '#fff' }} />
+        <input type="text" list="supplier-names-edit" value={supplier} onChange={(e) => setSupplier(e.target.value)} placeholder="Supplier" style={{ width: 150, padding: '6px 8px', border: `1px solid ${LINE}`, borderRadius: 3, background: '#fff' }} />
+        <datalist id="supplier-names-edit">
+          {(supplierNames || []).map((s) => <option key={s} value={s} />)}
+        </datalist>
       </div>
       <input type="text" placeholder="Reason for correction (required)" value={reason} onChange={(e) => setReason(e.target.value)} style={{ width: '100%', padding: '6px 8px', border: `1px solid ${LINE}`, borderRadius: 3, background: '#fff', marginBottom: 8, fontSize: '0.8rem' }} />
       <div style={{ display: 'flex', gap: 8 }}>
@@ -1327,18 +1787,23 @@ function ReturnLine({ tx, item, alreadyReturnedQty, processReturn }) {
 function ReturnsTab({ transactions, customers, returns, alreadyReturnedQty, processReturn }) {
   const [search, setSearch] = useState('');
 
-  const filtered = transactions.filter((t) => {
+  const exactRef = transactions.find((t) => t.ref && t.ref.toLowerCase() === search.trim().toLowerCase());
+
+  const filtered = exactRef ? [exactRef] : transactions.filter((t) => {
     if (!search.trim()) return true;
     const c = customers.find((c) => c.id === t.customerId);
     const q = search.toLowerCase();
-    return (c && c.name.toLowerCase().includes(q)) || t.items.some((it) => it.name.toLowerCase().includes(q));
+    return (c && c.name.toLowerCase().includes(q))
+      || t.items.some((it) => it.name.toLowerCase().includes(q))
+      || (t.ref && t.ref.toLowerCase().includes(q));
   }).slice(0, 15);
 
   return (
     <>
       <Card>
         <Label>Find the original sale</Label>
-        <input type="text" placeholder="Search by customer or product…" value={search} onChange={(e) => setSearch(e.target.value)} style={{ width: '100%', padding: '9px 10px', border: `1px solid ${LINE}`, borderRadius: 3, background: PARCHMENT }} />
+        <input type="text" placeholder="Sale reference (RB-000123), customer, or product…" value={search} onChange={(e) => setSearch(e.target.value)} style={{ width: '100%', padding: '9px 10px', border: `1px solid ${LINE}`, borderRadius: 3, background: PARCHMENT }} />
+        <div style={{ fontSize: '0.76rem', color: '#8a8577', marginTop: 6 }}>No receipt? Search by customer name or product instead of a reference.</div>
       </Card>
 
       {filtered.length === 0 && (
@@ -1351,7 +1816,10 @@ function ReturnsTab({ transactions, customers, returns, alreadyReturnedQty, proc
           <Card key={tx.id}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
               <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{c ? c.name : 'Unknown customer'}</div>
-              <div style={{ fontFamily: 'monospace', fontSize: '0.78rem', color: '#8a8577' }}>{tx.date} · {tx.method === 'account' ? 'Account' : 'Cash/cheque'}</div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontFamily: 'monospace', fontSize: '0.78rem', fontWeight: 700, color: GREEN }}>{tx.ref || '—'}</div>
+                <div style={{ fontFamily: 'monospace', fontSize: '0.74rem', color: '#8a8577' }}>{tx.date} {tx.time || ''} · {tx.method === 'account' ? 'Account' : 'Cash/cheque'}</div>
+              </div>
             </div>
             {tx.items.map((item, i) => (
               <ReturnLine key={i} tx={tx} item={item} alreadyReturnedQty={alreadyReturnedQty} processReturn={processReturn} />
